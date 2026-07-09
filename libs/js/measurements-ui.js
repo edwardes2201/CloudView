@@ -1,15 +1,11 @@
 // js/measurements-ui.js
 
-/**
- * UI para el control de capas de mediciones
- */
 class MeasurementsUI {
 	constructor(viewer, storage) {
 		this.viewer = viewer;
 		this.storage = storage;
 		this.panelVisible = false;
 		
-		// Referencias a elementos DOM
 		this.panel = document.getElementById('measurementLayerControl');
 		this.toggleBtn = document.getElementById('toggleLayerBtn');
 		this.closeBtn = document.getElementById('toggleLayerPanel');
@@ -32,23 +28,18 @@ class MeasurementsUI {
 		console.log('[MeasurementsUI] Inicializado');
 	}
 
-	// --- Inicializar event listeners ---
 	initEventListeners() {
-		// Toggle panel
 		this.toggleBtn.addEventListener('click', () => this.togglePanel());
 		this.closeBtn.addEventListener('click', () => this.hidePanel());
 
-		// Agregar capa
 		this.addBtn.addEventListener('click', () => this.addLayer());
 		this.newLayerInput.addEventListener('keypress', (e) => {
 			if (e.key === 'Enter') this.addLayer();
 		});
 
-		// Guardar y limpiar
 		this.saveBtn.addEventListener('click', () => this.saveAll());
 		this.clearBtn.addEventListener('click', () => this.clearAll());
 
-		// Eventos del storage
 		this.storage.addEventListener('layer_added', () => this.renderLayers());
 		this.storage.addEventListener('layer_removed', () => this.renderLayers());
 		this.storage.addEventListener('layer_updated', () => this.renderLayers());
@@ -64,7 +55,6 @@ class MeasurementsUI {
 			this.updateMeasurementCount();
 		});
 
-		// Eventos del viewer
 		this.viewer.scene.addEventListener('measurement_added', () => {
 			this.renderLayers();
 			this.updateMeasurementCount();
@@ -75,13 +65,11 @@ class MeasurementsUI {
 			this.updateMeasurementCount();
 		});
 
-		// Selección de objetos
 		this.viewer.inputHandler.addEventListener('selection_changed', (e) => {
 			const selection = e.selection || [];
 			this.highlightSelectedLayers(selection);
 		});
 		
-		// Escuchar tecla Escape para cerrar panel
 		document.addEventListener('keydown', (e) => {
 			if (e.key === 'Escape' && this.panelVisible) {
 				this.hidePanel();
@@ -89,7 +77,6 @@ class MeasurementsUI {
 		});
 	}
 
-	// --- Toggle panel ---
 	togglePanel() {
 		if (this.panelVisible) {
 			this.hidePanel();
@@ -113,7 +100,6 @@ class MeasurementsUI {
 		this.toggleBtn.textContent = '📐 Capas';
 	}
 
-	// --- Renderizar lista de capas ---
 	renderLayers() {
 		if (!this.layerList) return;
 		
@@ -127,7 +113,6 @@ class MeasurementsUI {
 			return;
 		}
 
-		// Ordenar: 'default' primero, luego alfabético
 		const sortedLayers = [...layers].sort((a, b) => {
 			if (a === 'default') return -1;
 			if (b === 'default') return 1;
@@ -143,7 +128,6 @@ class MeasurementsUI {
 			item.className = 'layer-item';
 			item.dataset.layer = layer;
 			
-			// Nombre y contador
 			const nameDiv = document.createElement('div');
 			nameDiv.className = 'layer-name';
 			
@@ -163,11 +147,9 @@ class MeasurementsUI {
 			
 			item.appendChild(nameDiv);
 			
-			// Acciones
 			const actions = document.createElement('div');
 			actions.className = 'layer-actions';
 			
-			// Botón de visibilidad
 			const visBtn = document.createElement('button');
 			visBtn.innerHTML = '👁';
 			visBtn.title = 'Mostrar/Ocultar capa';
@@ -182,7 +164,6 @@ class MeasurementsUI {
 			});
 			actions.appendChild(visBtn);
 			
-			// Botón de editar color
 			const colorBtn = document.createElement('button');
 			colorBtn.innerHTML = '🎨';
 			colorBtn.title = 'Cambiar color de capa';
@@ -192,7 +173,6 @@ class MeasurementsUI {
 			});
 			actions.appendChild(colorBtn);
 			
-			// Botón de eliminar (solo si no es default)
 			if (!isDefault) {
 				const delBtn = document.createElement('button');
 				delBtn.innerHTML = '✕';
@@ -209,7 +189,6 @@ class MeasurementsUI {
 			
 			item.appendChild(actions);
 			
-			// Click en el item para seleccionar mediciones de esta capa
 			item.addEventListener('click', () => {
 				this.selectLayer(layer);
 			});
@@ -218,7 +197,6 @@ class MeasurementsUI {
 		}
 	}
 
-	// --- Alternar visibilidad de capa ---
 	toggleLayerVisibility(layerName, visible) {
 		const measurements = this.viewer.scene.measurements;
 		let count = 0;
@@ -233,12 +211,10 @@ class MeasurementsUI {
 		console.log(`[MeasurementsUI] Capa "${layerName}": ${count} mediciones ${visible ? 'mostradas' : 'ocultas'}`);
 	}
 
-	// --- Seleccionar capa ---
 	selectLayer(layerName) {
 		const measurements = this.viewer.scene.measurements;
 		const selected = [];
 		
-		// Deseleccionar todo primero
 		this.viewer.inputHandler.deselectAll();
 		
 		for (const m of measurements) {
@@ -251,7 +227,6 @@ class MeasurementsUI {
 		if (selected.length > 0) {
 			console.log(`[MeasurementsUI] Seleccionadas ${selected.length} mediciones de "${layerName}"`);
 			
-			// Enfocar la vista en las mediciones seleccionadas
 			if (selected.length === 1) {
 				const points = selected[0].points.map(p => p.position);
 				if (points.length > 0) {
@@ -266,7 +241,6 @@ class MeasurementsUI {
 		}
 	}
 
-	// --- Resaltar capas seleccionadas ---
 	highlightSelectedLayers(selection) {
 		const selectedLayers = new Set();
 		
@@ -276,7 +250,6 @@ class MeasurementsUI {
 			}
 		}
 		
-		// Actualizar UI
 		const items = this.layerList.querySelectorAll('.layer-item');
 		for (const item of items) {
 			const layer = item.dataset.layer;
@@ -290,11 +263,9 @@ class MeasurementsUI {
 		}
 	}
 
-	// --- Selector de color ---
 	showColorPicker(layerName) {
 		const currentColor = this.storage.getLayerColor(layerName);
 		
-		// Crear un input color temporal
 		const input = document.createElement('input');
 		input.type = 'color';
 		input.value = currentColor;
@@ -310,13 +281,11 @@ class MeasurementsUI {
 		
 		input.click();
 		
-		// Limpiar después de usar
 		setTimeout(() => {
 			document.body.removeChild(input);
 		}, 1000);
 	}
 
-	// --- Agregar capa ---
 	addLayer() {
 		const name = this.newLayerInput.value.trim();
 		if (!name) {
@@ -334,7 +303,6 @@ class MeasurementsUI {
 				this.newLayerInput.style.borderColor = '';
 			}, 2000);
 			
-			// Asignar la nueva capa a las mediciones seleccionadas
 			const selection = this.viewer.inputHandler.selection || [];
 			for (const obj of selection) {
 				if (obj instanceof Potree.Measure) {
@@ -352,23 +320,19 @@ class MeasurementsUI {
 		}
 	}
 
-	// --- Guardar todo ---
 	saveAll() {
 		this.storage.saveMeasurements();
 		const count = this.viewer.scene.measurements.length;
 		
-		// Mostrar notificación
 		const msg = `Guardadas ${count} mediciones en ${this.storage.layers.length} capas`;
 		this.viewer.postMessage(msg, { duration: 2000 });
 		
-		// Feedback visual en el botón
 		this.saveBtn.textContent = '✅ Guardado';
 		setTimeout(() => {
 			this.saveBtn.textContent = '💾 Guardar';
 		}, 2000);
 	}
 
-	// --- Limpiar todo ---
 	clearAll() {
 		const count = this.viewer.scene.measurements.length;
 		
@@ -386,7 +350,6 @@ class MeasurementsUI {
 		}
 	}
 
-	// --- Actualizar contador de mediciones ---
 	updateMeasurementCount() {
 		if (!this.countDisplay) return;
 		

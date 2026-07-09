@@ -1,9 +1,5 @@
 // js/measurements-storage.js
 
-/**
- * Sistema de persistencia para mediciones de Potree
- * Guarda y carga mediciones automáticamente usando localStorage
- */
 class MeasurementsStorage {
 	constructor(viewer) {
 		this.viewer = viewer;
@@ -15,28 +11,22 @@ class MeasurementsStorage {
 		this._layers = new Set(['default']);
 		this._layerColors = new Map();
 		
-		// Cargar capas guardadas
 		this.loadLayers();
-		
-		// Configurar auto-guardado
 		this.setupAutoSave();
 		this.setupViewerEvents();
 		
 		console.log('[MeasurementsStorage] Inicializado');
 	}
 
-	// --- Getter de capas ---
 	get layers() {
 		return Array.from(this._layers);
 	}
 
-	// --- Obtener color de una capa ---
 	getLayerColor(layerName) {
 		if (this._layerColors.has(layerName)) {
 			return this._layerColors.get(layerName);
 		}
 		
-		// Generar color automático basado en el nombre
 		const colors = [
 			'#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
 			'#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
@@ -52,7 +42,6 @@ class MeasurementsStorage {
 		
 		this._layerColors.set(layerName, color);
 		this.saveLayers();
-		
 		return color;
 	}
 
@@ -62,7 +51,6 @@ class MeasurementsStorage {
 		this.dispatchEvent({ type: 'layer_updated', layer: layerName });
 	}
 
-	// --- Añadir capa ---
 	addLayer(layerName) {
 		layerName = layerName.trim();
 		if (!layerName) return false;
@@ -76,7 +64,6 @@ class MeasurementsStorage {
 		return false;
 	}
 
-	// --- Eliminar capa ---
 	removeLayer(layerName) {
 		if (layerName === 'default') return false;
 		
@@ -84,7 +71,6 @@ class MeasurementsStorage {
 			this._layers.delete(layerName);
 			this._layerColors.delete(layerName);
 			
-			// Mover mediciones de esta capa a 'default'
 			const measurements = this.viewer.scene.measurements;
 			for (const m of measurements) {
 				if (m.layer === layerName) {
@@ -100,33 +86,6 @@ class MeasurementsStorage {
 		return false;
 	}
 
-	// --- Renombrar capa ---
-	renameLayer(oldName, newName) {
-		if (oldName === 'default' || !this._layers.has(oldName)) return false;
-		if (this._layers.has(newName)) return false;
-		
-		this._layers.delete(oldName);
-		this._layers.add(newName);
-		
-		if (this._layerColors.has(oldName)) {
-			this._layerColors.set(newName, this._layerColors.get(oldName));
-			this._layerColors.delete(oldName);
-		}
-		
-		// Actualizar mediciones
-		for (const m of this.viewer.scene.measurements) {
-			if (m.layer === oldName) {
-				m.layer = newName;
-			}
-		}
-		
-		this.saveLayers();
-		this.saveMeasurements();
-		this.dispatchEvent({ type: 'layer_renamed', oldName, newName });
-		return true;
-	}
-
-	// --- Configurar auto-guardado ---
 	setupAutoSave() {
 		let lastChange = 0;
 		
@@ -146,12 +105,9 @@ class MeasurementsStorage {
 		});
 	}
 
-	// --- Configurar eventos del viewer ---
 	setupViewerEvents() {
-		// Guardar cuando se agrega o elimina una medición
 		this.viewer.scene.addEventListener('measurement_added', () => {
 			if (this.autoSave) {
-				// Pequeño delay para permitir que la medición se inicialice completamente
 				setTimeout(() => this.saveMeasurements(), 100);
 			}
 		});
@@ -160,7 +116,6 @@ class MeasurementsStorage {
 			if (this.autoSave) this.saveMeasurements();
 		});
 
-		// Escuchar cambios de capa
 		const measureListener = (m) => {
 			m.addEventListener('layer_changed', () => {
 				if (this.autoSave) {
@@ -179,28 +134,23 @@ class MeasurementsStorage {
 			});
 		};
 
-		// Aplicar a mediciones existentes
 		for (const m of this.viewer.scene.measurements) {
 			measureListener(m);
 		}
 
-		// Aplicar a nuevas mediciones
 		this.viewer.scene.addEventListener('measurement_added', (e) => {
 			measureListener(e.measurement);
 		});
 	}
 
-	// --- Obtener datos de mediciones ---
 	getMeasurementsData() {
 		const measurements = this.viewer.scene.measurements;
 		const data = measurements
 			.filter(m => m.persistent !== false)
 			.map(m => {
-				// Asegurar que la medición tenga el método toJSON
 				if (typeof m.toJSON === 'function') {
 					return m.toJSON();
 				}
-				// Fallback para mediciones antiguas
 				return {
 					type: 'line',
 					id: m._id || Date.now(),
@@ -225,50 +175,37 @@ class MeasurementsStorage {
 		return data;
 	}
 
-	// --- Guardar mediciones ---
 	saveMeasurements() {
 		try {
 			const data = this.getMeasurementsData();
 			localStorage.setItem(this.storageKey, JSON.stringify(data));
-			
-			// También guardar las capas
 			this.saveLayers();
-			
-			this.dispatchEvent({ 
-				type: 'measurements_saved', 
-				count: data.length 
-			});
-			
+			this.dispatchEvent({ type: 'measurements_saved', count: data.length });
 			console.log(`[MeasurementsStorage] Guardadas ${data.length} mediciones`);
 		} catch (error) {
 			console.error('[MeasurementsStorage] Error al guardar:', error);
 		}
 	}
 
-	// --- Cargar mediciones ---
 	loadMeasurements() {
 		try {
 			const data = localStorage.getItem(this.storageKey);
-			if (!data) return;
+			if (!data) return 0;
 
 			const measurements = JSON.parse(data);
 			let loadedCount = 0;
 			
-			// Limpiar mediciones existentes que sean persistentes
 			const toRemove = this.viewer.scene.measurements.filter(m => m.persistent !== false);
 			for (const m of toRemove) {
 				this.viewer.scene.removeMeasurement(m);
 			}
 
-			// Cargar mediciones guardadas
 			for (const mData of measurements) {
 				try {
-					// Usar el método fromJSON si existe, o crear manualmente
 					let measure;
 					if (typeof Potree.Measure !== 'undefined' && Potree.Measure.fromJSON) {
 						measure = Potree.Measure.fromJSON(mData, this.viewer);
 					} else {
-						// Fallback: crear medición manualmente
 						measure = this.createMeasurementFromData(mData);
 					}
 					
@@ -281,11 +218,7 @@ class MeasurementsStorage {
 				}
 			}
 			
-			this.dispatchEvent({ 
-				type: 'measurements_loaded', 
-				count: loadedCount 
-			});
-			
+			this.dispatchEvent({ type: 'measurements_loaded', count: loadedCount });
 			console.log(`[MeasurementsStorage] Cargadas ${loadedCount} mediciones`);
 			return loadedCount;
 		} catch (error) {
@@ -294,7 +227,6 @@ class MeasurementsStorage {
 		}
 	}
 
-	// --- Crear medición desde datos (fallback) ---
 	createMeasurementFromData(data) {
 		const measure = new Potree.Measure();
 		
@@ -303,7 +235,6 @@ class MeasurementsStorage {
 		measure.name = data.name || 'Measurement';
 		measure.layer = data.layer || 'default';
 		
-		// Restaurar propiedades
 		measure._showDistances = data.showDistances !== undefined ? data.showDistances : true;
 		measure._showCoordinates = data.showCoordinates || false;
 		measure._showArea = data.showArea || false;
@@ -316,13 +247,11 @@ class MeasurementsStorage {
 		measure.maxMarkers = data.maxMarkers || Infinity;
 		measure.persistent = data.persistent !== undefined ? data.persistent : true;
 
-		// Agregar puntos
 		for (const point of data.points) {
 			const pos = new THREE.Vector3(...point);
 			measure.addMarker(pos);
 		}
 
-		// Asignar color
 		if (data.color) {
 			measure.color = new THREE.Color(data.color);
 		}
@@ -330,7 +259,6 @@ class MeasurementsStorage {
 		return measure;
 	}
 
-	// --- Guardar capas ---
 	saveLayers() {
 		try {
 			const layers = Array.from(this._layers);
@@ -349,7 +277,6 @@ class MeasurementsStorage {
 		}
 	}
 
-	// --- Cargar capas ---
 	loadLayers() {
 		try {
 			const data = localStorage.getItem(this.layerKey);
@@ -364,7 +291,6 @@ class MeasurementsStorage {
 					}
 				}
 			}
-			// Asegurar que 'default' existe
 			if (!this._layers.has('default')) {
 				this._layers.add('default');
 			}
@@ -374,7 +300,6 @@ class MeasurementsStorage {
 		}
 	}
 
-	// --- Limpiar todo ---
 	clearAll() {
 		localStorage.removeItem(this.storageKey);
 		localStorage.removeItem(this.layerKey);
@@ -383,7 +308,6 @@ class MeasurementsStorage {
 		this.dispatchEvent({ type: 'cleared' });
 	}
 
-	// --- Obtener estadísticas ---
 	getStats() {
 		const measurements = this.viewer.scene.measurements;
 		const stats = {};
@@ -396,7 +320,6 @@ class MeasurementsStorage {
 		return stats;
 	}
 
-	// --- Sistema de eventos ---
 	_listeners = {};
 
 	addEventListener(type, callback) {
