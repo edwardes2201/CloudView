@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<title>Potree Viewer</title>
+
+	<link rel="stylesheet" type="text/css" href="./libs/potree/potree.css">
+	<link rel="stylesheet" type="text/css" href="./libs/jquery-ui/jquery-ui.min.css">
+	<link rel="stylesheet" type="text/css" href="./libs/openlayers3/ol.css">
+	<link rel="stylesheet" type="text/css" href="./libs/spectrum/spectrum.css">
+	<link rel="stylesheet" type="text/css" href="./libs/jstree/themes/mixed/style.css">
+</head>
+
+<body>
+	<script src="./libs/jquery/jquery-3.1.1.min.js"></script>
+	<script src="./libs/spectrum/spectrum.js"></script>
+	<script src="./libs/jquery-ui/jquery-ui.min.js"></script>
+	<script src="./libs/other/BinaryHeap.js"></script>
+	<script src="./libs/tween/tween.min.js"></script>
+	<script src="./libs/d3/d3.js"></script>
+	<script src="./libs/proj4/proj4.js"></script>
+	<script src="./libs/openlayers3/ol.js"></script>
+	<script src="./libs/i18next/i18next.js"></script>
+	<script src="./libs/jstree/jstree.js"></script>
+	<script src="./libs/potree/potree.js"></script>
+	<script src="./libs/plasio/js/laslaz.js"></script>
+	
+	<div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px; ">
+		<div id="potree_render_area" style="background-image: url('../build/potree/resources/images/background.jpg');"></div>
+		<div id="potree_sidebar_container"> </div>
+	</div>
+	
+	<script>
+	
+		// ============================================================
+		// FUNCIONES DE PERSISTENCIA DE MEDICIONES
+		// ============================================================
+		
+		/**
+		 * Guarda todas las mediciones en localStorage
+		 */
+		function saveMeasurements() {
+			try {
+				const measurements = window.viewer.scene.measurements;
+				const measurementData = measurements.map(measurement => {
+					// Extraer datos de la medición manualmente
+					return {
+						uuid: measurement.uuid || Math.random().toString(36).substr(2, 9),
+						name: measurement.name || 'Measurement',
+						points: measurement.points.map(p => ({
+							x: p.position.x,
+							y: p.position.y,
+							z: p.position.z
+						})),
+						showDistances: measurement.showDistances || false,
+						showCoordinates: measurement.showCoordinates || false,
+						showArea: measurement.showArea || false,
+						closed: measurement.closed || false,
+						showAngles: measurement.showAngles || false,
+						showHeight: measurement.showHeight || false,
+						showCircle: measurement.showCircle || false,
+						showAzimuth: measurement.showAzimuth || false,
+						showEdges: measurement.showEdges !== undefined ? measurement.showEdges : true,
+						color: measurement.color ? measurement.color.toArray() : [1, 0, 0]
+					};
+				});
+				
+				localStorage.setItem('potree_measurements', JSON.stringify(measurementData));
+				console.log(`✅ Mediciones guardadas: ${measurementData.length}`);
+			} catch (error) {
+				console.error('❌ Error al guardar mediciones:', error);
+			}
+		}
+		
+		/**
+		 * Carga las mediciones desde localStorage
+		 */
+		function loadMeasurements() {
+			try {
+				const savedData = localStorage.getItem('potree_measurements');
+				if (!savedData) {
+					console.log('ℹ️ No hay mediciones guardadas');
+					return;
+				}
+				
+				const measurementData = JSON.parse(savedData);
+				console.log(`📐 Cargando ${measurementData.length} mediciones...`);
+				
+				measurementData.forEach(data => {
+					// Crear una nueva medición
+					const measure = new Potree.Measure();
+					
+					// Configurar propiedades
+					measure.uuid = data.uuid;
+					measure.name = data.name || 'Measurement';
+					measure.showDistances = data.showDistances !== undefined ? data.showDistances : true;
+					measure.showCoordinates = data.showCoordinates || false;
+					measure.showArea = data.showArea || false;
+					measure.closed = data.closed || false;
+					measure.showAngles = data.showAngles || false;
+					measure.showHeight = data.showHeight || false;
+					measure.showCircle = data.showCircle || false;
+					measure.showAzimuth = data.showAzimuth || false;
+					measure.showEdges = data.showEdges !== undefined ? data.showEdges : true;
+					
+					if (data.color) {
+						measure.color.setRGB(data.color[0], data.color[1], data.color[2]);
+					}
+					
+					// Agregar puntos
+					data.points.forEach(point => {
+						const pos = new THREE.Vector3(point.x, point.y, point.z);
+						measure.addMarker(pos);
+					});
+					
+					// Añadir a la escena
+					window.viewer.scene.addMeasurement(measure);
+				});
+				
+				console.log(`✅ Mediciones cargadas: ${measurementData.length}`);
+			} catch (error) {
+				console.error('❌ Error al cargar mediciones:', error);
+			}
+		}
+		
+		/**
+		 * Elimina todas las mediciones guardadas
+		 */
+		function clearSavedMeasurements() {
+			localStorage.removeItem('potree_measurements');
+			console.log('🗑️ Mediciones guardadas eliminadas');
+		}
+		
+		// ============================================================
+		// INICIALIZACIÓN DEL VIEWER
+		// ============================================================
+		
+		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+		
+		viewer.setEDLEnabled(true);
+		viewer.setFOV(60);
+		viewer.setPointBudget(8_000_000);
+		viewer.loadSettingsFromURL();
+		
+		viewer.setDescription("");
+		
+		viewer.loadGUI(() => {
+			viewer.setLanguage('en');
+			$("#menu_appearance").next().show();
+			$("#menu_tools").next().show();
+			$("#menu_clipping").next().show();
+			viewer.toggleSidebar();
+			
+			// Cargar mediciones guardadas DESPUÉS de que la GUI esté lista
+			loadMeasurements();
+		});
+		
+		// ============================================================
+		// CONFIGURAR EVENTOS PARA GUARDAR AUTOMÁTICAMENTE
+		// ============================================================
+		
+		// Cuando se añade una medición
+		viewer.scene.addEventListener('measurement_added', function(e) {
+			console.log('📏 Medición añadida:', e.measurement.name);
+			// Esperar un momento para que la medición se configure completamente
+			setTimeout(saveMeasurements, 100);
+		});
+		
+		// Cuando se elimina una medición
+		viewer.scene.addEventListener('measurement_removed', function(e) {
+			console.log('🗑️ Medición eliminada:', e.measurement.name);
+			saveMeasurements();
+		});
+		
+		// También guardar cuando se modifica una medición (movimiento de puntos)
+		// Esto requiere interceptar el evento 'marker_moved' en cada medición
+		function setupMeasurementListeners(measurement) {
+			measurement.addEventListener('marker_moved', function() {
+				console.log('🔄 Punto de medición movido');
+				saveMeasurements();
+			});
+			measurement.addEventListener('marker_added', function() {
+				console.log('➕ Punto añadido a medición');
+				saveMeasurements();
+			});
+			measurement.addEventListener('marker_removed', function() {
+				console.log('➖ Punto eliminado de medición');
+				saveMeasurements();
+			});
+		}
+		
+		// Escuchar nuevas mediciones para agregarles listeners
+		viewer.scene.addEventListener('measurement_added', function(e) {
+			setupMeasurementListeners(e.measurement);
+		});
+		
+		// También configurar listeners para mediciones ya existentes
+		viewer.scene.measurements.forEach(setupMeasurementListeners);
+		
+		// Guardar al cerrar la página
+		window.addEventListener('beforeunload', function() {
+			saveMeasurements();
+		});
+		
+		// ============================================================
+		// FUNCIONES DE UTILIDAD (para debugging)
+		// ============================================================
+		
+		window.debugMeasurements = {
+			save: saveMeasurements,
+			load: loadMeasurements,
+			clear: clearSavedMeasurements,
+			list: function() {
+				const measurements = window.viewer.scene.measurements;
+				console.log(`📊 Total de mediciones: ${measurements.length}`);
+				measurements.forEach((m, i) => {
+					console.log(`  ${i+1}. ${m.name} (${m.points.length} puntos) - UUID: ${m.uuid || 'sin UUID'}`);
+				});
+			}
+		};
+		
+		// ============================================================
+		// CARGA DE LA NUBE DE PUNTOS
+		// ============================================================
+		
+		Potree.loadPointCloud("./pointclouds/TEST_DATA/metadata.json", "TEST_DATA", e => {
+			let scene = viewer.scene;
+			let pointcloud = e.pointcloud;
+			
+			let material = pointcloud.material;
+			material.size = 1;
+			material.pointSizeType = Potree.PointSizeType.FIXED;
+			material.shape = Potree.PointShape.CIRCLE;
+			material.activeAttributeName = "rgba";
+			
+			scene.addPointCloud(pointcloud);
+			
+			viewer.fitToScreen();
+		});
+		
+	</script>
+	
+</body>
+</html>
