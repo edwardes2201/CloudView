@@ -42,7 +42,7 @@
 		
 		viewer.setEDLEnabled(true);
 		viewer.setFOV(60);
-		viewer.setPointBudget(2_000_000);
+		viewer.setPointBudget(8_000_000);
 		<!-- INCLUDE SETTINGS HERE -->
 		viewer.loadSettingsFromURL();
 		
@@ -63,7 +63,7 @@
 			let pointcloud = e.pointcloud;
 			
 			let material = pointcloud.material;
-			material.size = 1;
+			material.size = 0.3;
 			material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
 			material.shape = Potree.PointShape.CIRCLE;
 			material.activeAttributeName = "rgba";
