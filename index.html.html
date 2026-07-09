@@ -1,366 +1,400 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="utf-8">
-	<meta name="description" content="">
-	<meta name="author" content="">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-	<title>Potree Viewer - Mediciones con Capas</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Potree Viewer - Mediciones con Capas</title>
 
-	<link rel="stylesheet" type="text/css" href="./libs/potree/potree.css">
-	<link rel="stylesheet" type="text/css" href="./libs/jquery-ui/jquery-ui.min.css">
-	<link rel="stylesheet" type="text/css" href="./libs/openlayers3/ol.css">
-	<link rel="stylesheet" type="text/css" href="./libs/spectrum/spectrum.css">
-	<link rel="stylesheet" type="text/css" href="./libs/jstree/themes/mixed/style.css">
-	
-	<style>
-		/* Estilos para el panel de capas */
-		.measurement-layer-control {
-			position: absolute;
-			top: 100px;
-			right: 10px;
-			background: rgba(25, 40, 44, 0.95);
-			color: #cccccc;
-			padding: 15px;
-			border-radius: 4px;
-			z-index: 1000;
-			min-width: 220px;
-			border: 1px solid #39474B;
-			display: none;
-			max-height: 80vh;
-			overflow-y: auto;
-			box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-		}
-		
-		.measurement-layer-control h4 {
-			margin: 0 0 10px 0;
-			color: #ffffff;
-		}
-		
-		.layer-item {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			padding: 4px 8px;
-			margin: 2px 0;
-			background: #39474B;
-			border-radius: 3px;
-			cursor: default;
-			transition: background 0.2s;
-		}
-		
-		.layer-item:hover {
-			background: #4a5a5f;
-		}
-		
-		.layer-item .layer-name {
-			flex: 1;
-			display: flex;
-			align-items: center;
-			gap: 8px;
-		}
-		
-		.layer-item .layer-color {
-			width: 12px;
-			height: 12px;
-			border-radius: 50%;
-			border: 1px solid #666;
-			display: inline-block;
-		}
-		
-		.layer-item .layer-actions {
-			display: flex;
-			gap: 4px;
-		}
-		
-		.layer-item .layer-actions button {
-			background: none;
-			border: none;
-			color: #cccccc;
-			cursor: pointer;
-			padding: 2px 4px;
-			font-size: 14px;
-			border-radius: 3px;
-			transition: background 0.2s;
-		}
-		
-		.layer-item .layer-actions button:hover {
-			background: rgba(255,255,255,0.1);
-		}
-		
-		.layer-item .layer-actions .delete-layer {
-			color: #ff6b6b;
-		}
-		
-		.layer-item .layer-actions .delete-layer:hover {
-			background: rgba(255,0,0,0.2);
-		}
-		
-		.layer-input-row {
-			display: flex;
-			gap: 5px;
-			margin-top: 10px;
-		}
-		
-		.layer-input-row input {
-			flex: 1;
-			padding: 4px 8px;
-			background: #39474B;
-			border: 1px solid #19282C;
-			color: white;
-			border-radius: 3px;
-			outline: none;
-		}
-		
-		.layer-input-row input:focus {
-			border-color: #108FB9;
-		}
-		
-		.layer-input-row button {
-			padding: 4px 12px;
-			background: #2D6D82;
-			border: none;
-			color: white;
-			border-radius: 3px;
-			cursor: pointer;
-			transition: background 0.2s;
-		}
-		
-		.layer-input-row button:hover {
-			background: #3d8da2;
-		}
-		
-		.layer-actions-row {
-			display: flex;
-			gap: 5px;
-			margin-top: 8px;
-		}
-		
-		.layer-actions-row button {
-			flex: 1;
-			padding: 4px;
-			background: #39474B;
-			border: 1px solid #19282C;
-			color: white;
-			border-radius: 3px;
-			cursor: pointer;
-			transition: background 0.2s;
-			font-size: 12px;
-		}
-		
-		.layer-actions-row button:hover {
-			background: #4a5a5f;
-		}
-		
-		.layer-actions-row .btn-danger {
-			background: #5c2d2d;
-		}
-		
-		.layer-actions-row .btn-danger:hover {
-			background: #7a3d3d;
-		}
-		
-		.layer-actions-row .btn-success {
-			background: #2d6d5c;
-		}
-		
-		.layer-actions-row .btn-success:hover {
-			background: #3d8d7a;
-		}
-		
-		.layer-badge {
-			display: inline-block;
-			padding: 1px 8px;
-			border-radius: 10px;
-			font-size: 10px;
-			font-weight: bold;
-			background: #19282C;
-			color: #999;
-			margin-left: 6px;
-		}
-		
-		#toggleLayerBtn {
-			position: absolute;
-			top: 100px;
-			right: 10px;
-			background: rgba(25, 40, 44, 0.85);
-			border: 1px solid #39474B;
-			color: #cccccc;
-			padding: 8px 12px;
-			border-radius: 4px;
-			z-index: 1001;
-			cursor: pointer;
-			font-size: 14px;
-			transition: background 0.2s;
-			user-select: none;
-		}
-		
-		#toggleLayerBtn:hover {
-			background: rgba(45, 109, 130, 0.85);
-		}
-		
-		.measurement-layer-control .close-btn {
-			background: none;
-			border: none;
-			color: #cccccc;
-			cursor: pointer;
-			font-size: 18px;
-			position: absolute;
-			right: 10px;
-			top: 10px;
-			padding: 0 4px;
-		}
-		
-		.measurement-layer-control .close-btn:hover {
-			color: #ffffff;
-		}
-		
-		/* Mejoras para la scrollbar del panel */
-		.measurement-layer-control::-webkit-scrollbar {
-			width: 4px;
-		}
-		
-		.measurement-layer-control::-webkit-scrollbar-thumb {
-			background: #39474B;
-			border-radius: 2px;
-		}
-		
-		.measurement-layer-control .layer-count {
-			font-size: 11px;
-			color: #888;
-			margin-left: 4px;
-		}
-		
-		/* Animación para el panel */
-		@keyframes slideIn {
-			from { transform: translateX(20px); opacity: 0; }
-			to { transform: translateX(0); opacity: 1; }
-		}
-		
-		.measurement-layer-control.show {
-			animation: slideIn 0.3s ease-out;
-		}
-		
-		.color-picker-btn {
-			padding: 2px 6px;
-			background: none;
-			border: 1px solid #666;
-			border-radius: 3px;
-			cursor: pointer;
-			font-size: 12px;
-		}
-		
-		.color-picker-btn:hover {
-			border-color: #fff;
-		}
-	</style>
+    <link rel="stylesheet" type="text/css" href="./libs/potree/potree.css">
+    <link rel="stylesheet" type="text/css" href="./libs/jquery-ui/jquery-ui.min.css">
+    <link rel="stylesheet" type="text/css" href="./libs/openlayers3/ol.css">
+    <link rel="stylesheet" type="text/css" href="./libs/spectrum/spectrum.css">
+    <link rel="stylesheet" type="text/css" href="./libs/jstree/themes/mixed/style.css">
+    
+    <style>
+        /* Estilos básicos para el panel de capas */
+        #potree_render_area {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+        }
+        
+        #potree_sidebar_container {
+            position: absolute;
+            z-index: 0;
+            width: 350px;
+            height: 100%;
+            overflow-y: scroll;
+            font-size: 85%;
+            border-right: 1px solid black;
+            background-color: #19282C;
+            display: none;
+        }
+
+        #toggleLayerBtn {
+            position: absolute;
+            top: 80px;
+            right: 10px;
+            background: rgba(25, 40, 44, 0.85);
+            border: 1px solid #39474B;
+            color: #cccccc;
+            padding: 8px 12px;
+            border-radius: 4px;
+            z-index: 1001;
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        #toggleLayerBtn:hover {
+            background: rgba(45, 109, 130, 0.85);
+        }
+
+        .measurement-layer-control {
+            position: absolute;
+            top: 120px;
+            right: 10px;
+            background: rgba(25, 40, 44, 0.95);
+            color: #cccccc;
+            padding: 15px;
+            border-radius: 4px;
+            z-index: 1000;
+            min-width: 220px;
+            border: 1px solid #39474B;
+            display: none;
+            max-height: 70vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .measurement-layer-control h4 {
+            margin: 0 0 10px 0;
+            color: #ffffff;
+        }
+
+        .measurement-layer-control .close-btn {
+            background: none;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            font-size: 18px;
+            float: right;
+            padding: 0 4px;
+        }
+
+        .measurement-layer-control .close-btn:hover {
+            color: #ffffff;
+        }
+
+        .layer-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px;
+            margin: 2px 0;
+            background: #39474B;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .layer-item:hover {
+            background: #4a5a5f;
+        }
+
+        .layer-item .layer-name {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .layer-item .layer-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid #666;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .layer-item .layer-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .layer-item .layer-actions button {
+            background: none;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 14px;
+            border-radius: 3px;
+        }
+
+        .layer-item .layer-actions button:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .layer-item .layer-count {
+            font-size: 11px;
+            color: #888;
+            margin-left: 4px;
+        }
+
+        .layer-input-row {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .layer-input-row input {
+            flex: 1;
+            padding: 4px 8px;
+            background: #39474B;
+            border: 1px solid #19282C;
+            color: white;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .layer-input-row input:focus {
+            border-color: #108FB9;
+        }
+
+        .layer-input-row button {
+            padding: 4px 12px;
+            background: #2D6D82;
+            border: none;
+            color: white;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .layer-input-row button:hover {
+            background: #3d8da2;
+        }
+
+        .layer-actions-row {
+            display: flex;
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .layer-actions-row button {
+            flex: 1;
+            padding: 4px;
+            background: #39474B;
+            border: 1px solid #19282C;
+            color: white;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .layer-actions-row button:hover {
+            background: #4a5a5f;
+        }
+
+        .layer-actions-row .btn-danger {
+            background: #5c2d2d;
+        }
+
+        .layer-actions-row .btn-danger:hover {
+            background: #7a3d3d;
+        }
+
+        .layer-actions-row .btn-success {
+            background: #2d6d5c;
+        }
+
+        .layer-actions-row .btn-success:hover {
+            background: #3d8d7a;
+        }
+
+        #measurementCount {
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+            display: block;
+            margin-top: 8px;
+        }
+
+        .potree_message {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(25, 40, 44, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            z-index: 2000;
+            border: 1px solid #39474B;
+            display: none;
+        }
+    </style>
 </head>
 
 <body>
-	<script src="./libs/jquery/jquery-3.1.1.min.js"></script>
-	<script src="./libs/spectrum/spectrum.js"></script>
-	<script src="./libs/jquery-ui/jquery-ui.min.js"></script>
-	<script src="./libs/other/BinaryHeap.js"></script>
-	<script src="./libs/tween/tween.min.js"></script>
-	<script src="./libs/d3/d3.js"></script>
-	<script src="./libs/proj4/proj4.js"></script>
-	<script src="./libs/openlayers3/ol.js"></script>
-	<script src="./libs/i18next/i18next.js"></script>
-	<script src="./libs/jstree/jstree.js"></script>
-	<script src="./libs/potree/potree.js"></script>
-	<script src="./libs/plasio/js/laslaz.js"></script>
-	
-	<!-- Scripts personalizados -->
-	<script src="./js/measurements-storage.js"></script>
-	<script src="./js/measurements-ui.js"></script>
-	
-	<div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px; ">
-		<div id="potree_render_area" style="background-image: url('../build/potree/resources/images/background.jpg');"></div>
-		<div id="potree_sidebar_container"> </div>
-	</div>
-	
-	<!-- Botón para mostrar/ocultar el panel de capas -->
-	<button id="toggleLayerBtn">📐 Capas</button>
+    <!-- Contenedor principal de Potree -->
+    <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+        <div id="potree_render_area"></div>
+        <div id="potree_sidebar_container"></div>
+    </div>
 
-	<!-- Panel de control de capas -->
-	<div id="measurementLayerControl" class="measurement-layer-control">
-		<button class="close-btn" id="toggleLayerPanel">✕</button>
-		<h4>📐 Capas de Mediciones</h4>
-		
-		<div id="layerList">
-			<!-- Las capas se renderizan aquí dinámicamente -->
-		</div>
-		
-		<div class="layer-input-row">
-			<input id="newLayerInput" type="text" placeholder="Nueva capa...">
-			<button id="addLayerBtn">+</button>
-		</div>
-		
-		<div class="layer-actions-row">
-			<button id="saveMeasurementsBtn" class="btn-success">💾 Guardar</button>
-			<button id="clearMeasurementsBtn" class="btn-danger">🗑 Limpiar</button>
-		</div>
-		
-		<div style="margin-top: 8px; font-size: 11px; color: #666; text-align: center;">
-			<span id="measurementCount">0 mediciones</span>
-		</div>
-	</div>
-	
-	<script>
-	
-		// --- Configuración inicial ---
-		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
-		
-		viewer.setEDLEnabled(true);
-		viewer.setFOV(60);
-		viewer.setPointBudget(8_000_000);
-		viewer.loadSettingsFromURL();
-		
-		viewer.setDescription("");
-		
-		viewer.loadGUI(() => {
-			viewer.setLanguage('en');
-			$("#menu_appearance").next().show();
-			$("#menu_tools").next().show();
-			$("#menu_clipping").next().show();
-			viewer.toggleSidebar();
-		});
-		
-		// --- Carga de la nube de puntos ---
-		Potree.loadPointCloud("./pointclouds/TEST_DATA/metadata.json", "TEST_DATA", e => {
-			let scene = viewer.scene;
-			let pointcloud = e.pointcloud;
-			
-			let material = pointcloud.material;
-			material.size = 1;
-			material.pointSizeType = Potree.PointSizeType.FIXED;
-			material.shape = Potree.PointShape.CIRCLE;
-			material.activeAttributeName = "rgba";
-			
-			scene.addPointCloud(pointcloud);
-			
-			// --- Inicializar el sistema de capas ---
-			viewer.onGUILoaded(() => {
-				// Inicializar el sistema de almacenamiento
-				if (typeof MeasurementsStorage !== 'undefined') {
-					window.measurementStorage = new MeasurementsStorage(viewer);
-					
-					// Inicializar la UI de capas
-					if (typeof MeasurementsUI !== 'undefined') {
-						window.measurementsUI = new MeasurementsUI(viewer, measurementStorage);
-					}
-				}
-				
-				// Cargar mediciones guardadas
-				if (window.measurementStorage) {
-					measurementStorage.loadMeasurements();
-				}
-			});
-			
-			viewer.fitToScreen();
-		});
-		
-	</script>
-	
+    <!-- Botón para mostrar/ocultar el panel de capas -->
+    <button id="toggleLayerBtn">📐 Capas</button>
+
+    <!-- Panel de control de capas -->
+    <div id="measurementLayerControl" class="measurement-layer-control">
+        <button class="close-btn" id="toggleLayerPanel">✕</button>
+        <h4>📐 Capas de Mediciones</h4>
+        
+        <div id="layerList">
+            <!-- Las capas se renderizan aquí -->
+        </div>
+        
+        <div class="layer-input-row">
+            <input id="newLayerInput" type="text" placeholder="Nueva capa...">
+            <button id="addLayerBtn">+</button>
+        </div>
+        
+        <div class="layer-actions-row">
+            <button id="saveMeasurementsBtn" class="btn-success">💾 Guardar</button>
+            <button id="clearMeasurementsBtn" class="btn-danger">🗑 Limpiar</button>
+        </div>
+        
+        <span id="measurementCount">0 mediciones</span>
+    </div>
+
+    <!-- Mensajes del sistema -->
+    <div id="messageContainer" class="potree_message"></div>
+
+    <!-- Scripts -->
+    <script src="./libs/jquery/jquery-3.1.1.min.js"></script>
+    <script src="./libs/spectrum/spectrum.js"></script>
+    <script src="./libs/jquery-ui/jquery-ui.min.js"></script>
+    <script src="./libs/other/BinaryHeap.js"></script>
+    <script src="./libs/tween/tween.min.js"></script>
+    <script src="./libs/d3/d3.js"></script>
+    <script src="./libs/proj4/proj4.js"></script>
+    <script src="./libs/openlayers3/ol.js"></script>
+    <script src="./libs/i18next/i18next.js"></script>
+    <script src="./libs/jstree/jstree.js"></script>
+    <script src="./libs/potree/potree.js"></script>
+    <script src="./libs/plasio/js/laslaz.js"></script>
+    
+    <!-- Nuestros scripts -->
+    <script src="./js/potree-extend.js"></script>
+    <script src="./js/measurements-storage.js"></script>
+    <script src="./js/measurements-ui.js"></script>
+
+    <script>
+        // --- Configuración inicial ---
+        console.log('Iniciando Potree...');
+        
+        // Crear el viewer
+        const viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+        
+        // Configuración básica
+        viewer.setEDLEnabled(true);
+        viewer.setFOV(60);
+        viewer.setPointBudget(8_000_000);
+        viewer.setDescription("");
+        
+        // Cargar la interfaz
+        viewer.loadGUI(() => {
+            console.log('GUI cargada');
+            viewer.setLanguage('en');
+            $("#menu_appearance").next().show();
+            $("#menu_tools").next().show();
+            $("#menu_clipping").next().show();
+            // viewer.toggleSidebar(); // Descomentar si quieres que el sidebar se muestre
+        });
+        
+        // Cargar la nube de puntos
+        console.log('Cargando nube de puntos...');
+        Potree.loadPointCloud("./pointclouds/TEST_DATA/metadata.json", "TEST_DATA", (e) => {
+            console.log('Nube de puntos cargada');
+            const scene = viewer.scene;
+            const pointcloud = e.pointcloud;
+            
+            const material = pointcloud.material;
+            material.size = 1;
+            material.pointSizeType = Potree.PointSizeType.FIXED;
+            material.shape = Potree.PointShape.CIRCLE;
+            material.activeAttributeName = "rgba";
+            
+            scene.addPointCloud(pointcloud);
+            
+            // Inicializar el sistema de capas después de que la GUI esté cargada
+            viewer.onGUILoaded(() => {
+                console.log('Inicializando sistema de capas...');
+                
+                // Verificar que las clases existen
+                if (typeof MeasurementsStorage === 'undefined') {
+                    console.error('MeasurementsStorage no está definido');
+                    return;
+                }
+                
+                if (typeof MeasurementsUI === 'undefined') {
+                    console.error('MeasurementsUI no está definido');
+                    return;
+                }
+                
+                // Crear el storage
+                window.measurementStorage = new MeasurementsStorage(viewer);
+                
+                // Crear la UI
+                window.measurementsUI = new MeasurementsUI(viewer, window.measurementStorage);
+                
+                // Cargar mediciones guardadas
+                const count = window.measurementStorage.loadMeasurements();
+                console.log(`Cargadas ${count} mediciones`);
+                
+                // Mostrar mensaje de bienvenida
+                viewer.postMessage('Sistema de capas activado. Crea mediciones y se guardarán automáticamente.', { duration: 3000 });
+            });
+            
+            viewer.fitToScreen();
+        });
+
+        // --- Funciones auxiliares para mensajes ---
+        Potree.Viewer.prototype.postMessage = function(content, params = {}) {
+            const container = document.getElementById('messageContainer');
+            if (!container) return;
+            
+            container.textContent = content;
+            container.style.display = 'block';
+            container.style.opacity = '1';
+            
+            if (params.duration) {
+                setTimeout(() => {
+                    container.style.opacity = '0';
+                    setTimeout(() => {
+                        container.style.display = 'none';
+                    }, 500);
+                }, params.duration);
+            }
+        };
+
+        // Manejar errores
+        window.onerror = function(msg, url, line, col, error) {
+            console.error('Error:', msg, error);
+            const container = document.getElementById('messageContainer');
+            if (container) {
+                container.textContent = 'Error: ' + msg;
+                container.style.display = 'block';
+                container.style.background = 'rgba(200, 50, 50, 0.9)';
+            }
+        };
+
+        console.log('Potree inicializado');
+    </script>
 </body>
 </html>
