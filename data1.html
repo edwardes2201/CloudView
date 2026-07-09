@@ -133,10 +133,10 @@
 							measure.color.setRGB(data.color[0], data.color[1], data.color[2]);
 						}
 						
-						// ⭐⭐⭐ USAR Potree.Vector3 (disponible en Potree 1.8)
+						// ⭐⭐⭐ USAR THREE.Vector3 (disponible globalmente en Potree 1.8)
 						if (data.points && data.points.length > 0) {
 							data.points.forEach(point => {
-								const pos = new Potree.Vector3(point.x, point.y, point.z);
+								const pos = new THREE.Vector3(point.x, point.y, point.z);
 								measure.addMarker(pos);
 							});
 						} else {
@@ -290,6 +290,19 @@
 			
 			console.log('✅ Proceso completado');
 		});
+		
+		// ============================================================
+		// BOTONES DE CONTROL (Opcional)
+		// ============================================================
+		
+		// Botón para guardar manualmente
+		setTimeout(() => {
+			const btn = document.createElement('button');
+			btn.textContent = '💾 Guardar Mediciones';
+			btn.style.cssText = 'position:absolute; bottom:200px; right:20px; z-index:9999; padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:5px; cursor:pointer;';
+			btn.onclick = saveMeasurements;
+			document.body.appendChild(btn);
+		}, 3000);
 		
 	</script>
 	
