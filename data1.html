@@ -36,160 +36,118 @@
 	<script>
 	
 		// ============================================================
-		// VARIABLE GLOBAL PARA EL VIEWER
+		// VARIABLE GLOBAL
 		// ============================================================
 		
 		let viewer;
-		let measurementsLoaded = false;
+		let loadAttempted = false;
 		
 		// ============================================================
-		// FUNCIONES DE PERSISTENCIA DE MEDICIONES
+		// FUNCIONES DE PERSISTENCIA
 		// ============================================================
 		
-		/**
-		 * Guarda todas las mediciones en localStorage
-		 */
 		function saveMeasurements() {
 			try {
-				if (!viewer || !viewer.scene) {
-					console.warn('⚠️ Viewer no inicializado');
-					return;
-				}
+				if (!viewer || !viewer.scene) return;
 				
 				const measurements = viewer.scene.measurements;
-				console.log(`💾 Guardando ${measurements.length} mediciones...`);
+				const data = measurements.map(m => ({
+					uuid: m.uuid || 'm_' + Date.now(),
+					name: m.name || 'Measurement',
+					points: m.points.map(p => ({ x: p.position.x, y: p.position.y, z: p.position.z })),
+					showDistances: m.showDistances !== undefined ? m.showDistances : true,
+					showCoordinates: m.showCoordinates || false,
+					showArea: m.showArea || false,
+					closed: m.closed || false,
+					showAngles: m.showAngles || false,
+					showHeight: m.showHeight || false,
+					showCircle: m.showCircle || false,
+					showAzimuth: m.showAzimuth || false,
+					showEdges: m.showEdges !== undefined ? m.showEdges : true,
+					color: m.color ? m.color.toArray() : [1, 0, 0]
+				}));
 				
-				const measurementData = measurements.map(measurement => {
-					return {
-						uuid: measurement.uuid || 'm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-						name: measurement.name || 'Measurement',
-						points: measurement.points.map(p => ({
-							x: p.position.x,
-							y: p.position.y,
-							z: p.position.z
-						})),
-						showDistances: measurement.showDistances !== undefined ? measurement.showDistances : true,
-						showCoordinates: measurement.showCoordinates || false,
-						showArea: measurement.showArea || false,
-						closed: measurement.closed || false,
-						showAngles: measurement.showAngles || false,
-						showHeight: measurement.showHeight || false,
-						showCircle: measurement.showCircle || false,
-						showAzimuth: measurement.showAzimuth || false,
-						showEdges: measurement.showEdges !== undefined ? measurement.showEdges : true,
-						color: measurement.color ? measurement.color.toArray() : [1, 0, 0]
-					};
-				});
-				
-				localStorage.setItem('potree_measurements', JSON.stringify(measurementData));
-				console.log(`✅ Mediciones guardadas: ${measurementData.length}`);
-				
-			} catch (error) {
-				console.error('❌ Error al guardar mediciones:', error);
+				localStorage.setItem('potree_measurements', JSON.stringify(data));
+				console.log('💾 Mediciones guardadas:', data.length);
+			} catch(e) {
+				console.error('Error guardando:', e);
 			}
 		}
 		
-		/**
-		 * Carga las mediciones desde localStorage
-		 */
 		function loadMeasurements() {
 			try {
 				if (!viewer || !viewer.scene) {
-					console.warn('⚠️ Viewer no inicializado');
+					console.warn('⚠️ Viewer no disponible');
 					return;
 				}
 				
-				const savedData = localStorage.getItem('potree_measurements');
-				if (!savedData) {
+				// Verificar que THREE esté disponible
+				if (typeof THREE === 'undefined') {
+					console.warn('⏳ THREE no disponible, esperando...');
+					setTimeout(loadMeasurements, 200);
+					return;
+				}
+				
+				const saved = localStorage.getItem('potree_measurements');
+				if (!saved) {
 					console.log('ℹ️ No hay mediciones guardadas');
 					return;
 				}
 				
-				console.log(`📂 Datos encontrados: ${savedData.length} bytes`);
+				const data = JSON.parse(saved);
+				console.log('📐 Cargando', data.length, 'mediciones...');
 				
-				const measurementData = JSON.parse(savedData);
-				console.log(`📐 Cargando ${measurementData.length} mediciones...`);
-				
-				let loadedCount = 0;
-				
-				measurementData.forEach((data, index) => {
+				let count = 0;
+				data.forEach((item, index) => {
 					try {
-						// Crear una nueva medición
 						const measure = new Potree.Measure();
 						
-						// Configurar propiedades
-						measure.uuid = data.uuid || 'm_loaded_' + Date.now() + '_' + index;
-						measure.name = data.name || 'Measurement ' + (index + 1);
-						measure.showDistances = data.showDistances !== undefined ? data.showDistances : true;
-						measure.showCoordinates = data.showCoordinates || false;
-						measure.showArea = data.showArea || false;
-						measure.closed = data.closed || false;
-						measure.showAngles = data.showAngles || false;
-						measure.showHeight = data.showHeight || false;
-						measure.showCircle = data.showCircle || false;
-						measure.showAzimuth = data.showAzimuth || false;
-						measure.showEdges = data.showEdges !== undefined ? data.showEdges : true;
+						measure.uuid = item.uuid || 'm_' + Date.now() + '_' + index;
+						measure.name = item.name || 'Measurement';
+						measure.showDistances = item.showDistances !== undefined ? item.showDistances : true;
+						measure.showCoordinates = item.showCoordinates || false;
+						measure.showArea = item.showArea || false;
+						measure.closed = item.closed || false;
+						measure.showAngles = item.showAngles || false;
+						measure.showHeight = item.showHeight || false;
+						measure.showCircle = item.showCircle || false;
+						measure.showAzimuth = item.showAzimuth || false;
+						measure.showEdges = item.showEdges !== undefined ? item.showEdges : true;
 						
-						if (data.color) {
-							measure.color.setRGB(data.color[0], data.color[1], data.color[2]);
+						if (item.color) {
+							measure.color.setRGB(item.color[0], item.color[1], item.color[2]);
 						}
 						
-						// ⭐⭐⭐ USAR THREE.Vector3 (disponible globalmente en Potree 1.8)
-						if (data.points && data.points.length > 0) {
-							data.points.forEach(point => {
-								const pos = new THREE.Vector3(point.x, point.y, point.z);
+						if (item.points && item.points.length > 0) {
+							item.points.forEach(p => {
+								const pos = new THREE.Vector3(p.x, p.y, p.z);
 								measure.addMarker(pos);
 							});
-						} else {
-							console.warn(`⚠️ Medición ${data.name} no tiene puntos`);
-							return;
 						}
 						
-						// Añadir a la escena
 						viewer.scene.addMeasurement(measure);
-						loadedCount++;
+						count++;
 						
-						// Configurar listeners para esta medición
-						setupMeasurementListeners(measure);
+						// Configurar listeners
+						['marker_moved', 'marker_added', 'marker_removed'].forEach(e => {
+							measure.addEventListener(e, () => setTimeout(saveMeasurements, 50));
+						});
 						
-					} catch (error) {
-						console.error(`❌ Error al cargar medición ${index}:`, error);
+					} catch(e) {
+						console.error('Error en medición', index, ':', e);
 					}
 				});
 				
-				console.log(`✅ Mediciones cargadas: ${loadedCount}`);
-				measurementsLoaded = true;
+				console.log('✅ Mediciones cargadas:', count);
+				loadAttempted = true;
 				
-			} catch (error) {
-				console.error('❌ Error al cargar mediciones:', error);
+			} catch(e) {
+				console.error('Error cargando:', e);
 			}
 		}
 		
-		/**
-		 * Elimina todas las mediciones guardadas
-		 */
-		function clearSavedMeasurements() {
-			localStorage.removeItem('potree_measurements');
-			console.log('🗑️ Mediciones guardadas eliminadas');
-		}
-		
-		/**
-		 * Configura listeners para una medición específica
-		 */
-		function setupMeasurementListeners(measurement) {
-			if (!measurement) return;
-			
-			const events = ['marker_moved', 'marker_added', 'marker_removed'];
-			events.forEach(eventType => {
-				measurement.addEventListener(eventType, function(e) {
-					console.log(`🔄 Evento '${eventType}' en:`, measurement.name);
-					setTimeout(saveMeasurements, 50);
-				});
-			});
-		}
-		
 		// ============================================================
-		// INICIALIZACIÓN DEL VIEWER
+		// INICIALIZACIÓN
 		// ============================================================
 		
 		console.log('🚀 Inicializando Potree Viewer...');
@@ -211,18 +169,19 @@
 			$("#menu_tools").next().show();
 			$("#menu_clipping").next().show();
 			viewer.toggleSidebar();
-			
-			// No cargar mediciones aquí, esperar a que la nube de puntos esté lista
-			console.log('⏳ Esperando nube de puntos para cargar mediciones...');
 		});
 		
 		// ============================================================
-		// EVENTOS PARA GUARDAR AUTOMÁTICAMENTE
+		// EVENTOS
 		// ============================================================
 		
 		viewer.scene.addEventListener('measurement_added', function(e) {
 			console.log('📏 Medición añadida:', e.measurement.name);
-			setupMeasurementListeners(e.measurement);
+			
+			['marker_moved', 'marker_added', 'marker_removed'].forEach(ev => {
+				e.measurement.addEventListener(ev, () => setTimeout(saveMeasurements, 50));
+			});
+			
 			setTimeout(saveMeasurements, 100);
 		});
 		
@@ -231,37 +190,7 @@
 			saveMeasurements();
 		});
 		
-		window.addEventListener('beforeunload', function() {
-			console.log('💾 Guardando antes de cerrar...');
-			saveMeasurements();
-		});
-		
-		// Guardado periódico (cada 30 segundos)
-		setInterval(() => {
-			if (viewer && viewer.scene && viewer.scene.measurements.length > 0) {
-				saveMeasurements();
-			}
-		}, 30000);
-		
-		// ============================================================
-		// DEBUG
-		// ============================================================
-		
-		window.debugMeasurements = {
-			save: saveMeasurements,
-			load: loadMeasurements,
-			clear: clearSavedMeasurements,
-			list: function() {
-				if (!viewer || !viewer.scene) return;
-				const m = viewer.scene.measurements;
-				console.log(`📊 ${m.length} mediciones en escena`);
-				m.forEach((item, i) => {
-					console.log(`  ${i+1}. ${item.name} (${item.points.length} pts)`);
-				});
-				const saved = localStorage.getItem('potree_measurements');
-				console.log(`💾 ${saved ? JSON.parse(saved).length : 0} en localStorage`);
-			}
-		};
+		window.addEventListener('beforeunload', saveMeasurements);
 		
 		// ============================================================
 		// CARGA DE NUBE DE PUNTOS + MEDICIONES
@@ -284,12 +213,24 @@
 			scene.addPointCloud(pointcloud);
 			viewer.fitToScreen();
 			
-			// ⭐⭐⭐ AHORA que la nube de puntos está cargada, cargamos las mediciones
+			// ⭐ Cargar mediciones DESPUÉS de la nube
 			console.log('📂 Cargando mediciones guardadas...');
 			loadMeasurements();
 			
 			console.log('✅ Proceso completado');
 		});
+		
+		// ============================================================
+		// BOTÓN DE PRUEBA
+		// ============================================================
+		
+		setTimeout(() => {
+			const btn = document.createElement('button');
+			btn.textContent = '💾 Guardar';
+			btn.style.cssText = 'position:absolute; bottom:200px; right:20px; z-index:9999; padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:5px; cursor:pointer;';
+			btn.onclick = saveMeasurements;
+			document.body.appendChild(btn);
+		}, 3000);
 		
 	</script>
 	
