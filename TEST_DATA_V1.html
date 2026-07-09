@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<title>Potree Viewer</title>
+
+	<link rel="stylesheet" type="text/css" href="./libs/potree/potree.css">
+	<link rel="stylesheet" type="text/css" href="./libs/jquery-ui/jquery-ui.min.css">
+	<link rel="stylesheet" type="text/css" href="./libs/openlayers3/ol.css">
+	<link rel="stylesheet" type="text/css" href="./libs/spectrum/spectrum.css">
+	<link rel="stylesheet" type="text/css" href="./libs/jstree/themes/mixed/style.css">
+</head>
+
+<body>
+	<script src="./libs/jquery/jquery-3.1.1.min.js"></script>
+	<script src="./libs/spectrum/spectrum.js"></script>
+	<script src="./libs/jquery-ui/jquery-ui.min.js"></script>
+	<script src="./libs/other/BinaryHeap.js"></script>
+	<script src="./libs/tween/tween.min.js"></script>
+	<script src="./libs/d3/d3.js"></script>
+	<script src="./libs/proj4/proj4.js"></script>
+	<script src="./libs/openlayers3/ol.js"></script>
+	<script src="./libs/i18next/i18next.js"></script>
+	<script src="./libs/jstree/jstree.js"></script>
+	<script src="./libs/potree/potree.js"></script>
+	<script src="./libs/plasio/js/laslaz.js"></script>
+	
+	<!-- INCLUDE ADDITIONAL DEPENDENCIES HERE -->
+	<!-- INCLUDE SETTINGS HERE -->
+	
+	<div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px; ">
+		<div id="potree_render_area" style="background-image: url('../build/potree/resources/images/background.jpg');"></div>
+		<div id="potree_sidebar_container"> </div>
+	</div>
+	
+	<script>
+	
+		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+		
+		viewer.setEDLEnabled(true);
+		viewer.setFOV(60);
+		viewer.setPointBudget(2_000_000);
+		<!-- INCLUDE SETTINGS HERE -->
+		viewer.loadSettingsFromURL();
+		
+		viewer.setDescription("");
+		
+		viewer.loadGUI(() => {
+			viewer.setLanguage('en');
+			$("#menu_appearance").next().show();
+			$("#menu_tools").next().show();
+			$("#menu_clipping").next().show();
+			viewer.toggleSidebar();
+		});
+		
+		
+
+		Potree.loadPointCloud("./pointclouds/TEST_DATA/metadata.json", "TEST_DATA", e => {
+			let scene = viewer.scene;
+			let pointcloud = e.pointcloud;
+			
+			let material = pointcloud.material;
+			material.size = 0.3;
+			material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+			material.shape = Potree.PointShape.SQUARE;
+			material.activeAttributeName = "rgba";
+			
+			scene.addPointCloud(pointcloud);
+			
+			viewer.fitToScreen();
+		});
+
+		// ===================================================
+		// Exportar polilineas (mediciones de distancia) a DXF
+		// ===================================================
+
+		function polylinesToDXF(measurements) {
+			let lines = [];
+			lines.push("0", "SECTION", "2", "ENTITIES");
+
+			for (let m of measurements) {
+				// Solo exportamos mediciones tipo polilinea (2 o mas puntos, sin area/volumen)
+				if (!m.points || m.points.length < 2) continue;
+
+				lines.push("0", "POLYLINE", "8", "0", "66", "1", "70", "8");
+
+				for (let p of m.points) {
+					let pos = p.position; // THREE.Vector3
+					lines.push(
+						"0", "VERTEX",
+						"8", "0",
+						"10", pos.x.toFixed(3),
+						"20", pos.y.toFixed(3),
+						"30", pos.z.toFixed(3),
+						"70", "32"
+					);
+				}
+
+				lines.push("0", "SEQEND");
+			}
+
+			lines.push("0", "ENDSEC", "0", "EOF");
+			return lines.join("\n");
+		}
+
+		function downloadDXF() {
+			let measurements = viewer.scene.measurements;
+
+			if (!measurements || measurements.length === 0) {
+				alert("No hay polilineas dibujadas todavia. Usa la herramienta de Distancia para dibujar una sobre la nube de puntos.");
+				return;
+			}
+
+			let dxfText = polylinesToDXF(measurements);
+			let blob = new Blob([dxfText], { type: "application/dxf" });
+			let url = URL.createObjectURL(blob);
+
+			let a = document.createElement("a");
+			a.href = url;
+			a.download = "polilineas_TEST_DATA.dxf";
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		}
+
+		// Boton flotante para exportar
+		let exportButton = document.createElement("button");
+		exportButton.innerText = "Exportar polilineas a DXF";
+		exportButton.style.position = "absolute";
+		exportButton.style.top = "10px";
+		exportButton.style.right = "10px";
+		exportButton.style.zIndex = "1000";
+		exportButton.style.padding = "8px 12px";
+		exportButton.style.cursor = "pointer";
+		exportButton.onclick = downloadDXF;
+		document.body.appendChild(exportButton);
+
+	</script>
+	
+	
+  </body>
+</html>
