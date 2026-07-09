@@ -137,10 +137,10 @@
 							measure.color.setRGB(data.color[0], data.color[1], data.color[2]);
 						}
 						
-						// ⭐⭐⭐ CORRECCIÓN: Usar Potree.Vector3 en lugar de THREE.Vector3
+						// ⭐⭐⭐ USAR THREE.Vector3 (disponible globalmente en Potree 1.8)
 						if (data.points && data.points.length > 0) {
 							data.points.forEach(point => {
-								const pos = new Potree.Vector3(point.x, point.y, point.z);
+								const pos = new THREE.Vector3(point.x, point.y, point.z);
 								measure.addMarker(pos);
 							});
 						} else {
