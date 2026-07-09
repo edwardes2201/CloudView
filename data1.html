@@ -2,10 +2,8 @@
 <html lang="en">
 <head>
 	<meta charset="utf-8">
-	<meta name="description" content="">
-	<meta name="author" content="">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-	<title>Potree Viewer</title>
+	<title>Potree Viewer - Mediciones Persistentes</title>
 
 	<link rel="stylesheet" type="text/css" href="./libs/potree/potree.css">
 	<link rel="stylesheet" type="text/css" href="./libs/jquery-ui/jquery-ui.min.css">
@@ -35,203 +33,453 @@
 	
 	<script>
 	
-		// ============================================================
-		// VARIABLE GLOBAL
-		// ============================================================
-		
-		let viewer;
-		let loadAttempted = false;
-		
-		// ============================================================
-		// FUNCIONES DE PERSISTENCIA
-		// ============================================================
-		
-		function saveMeasurements() {
-			try {
-				if (!viewer || !viewer.scene) return;
-				
-				const measurements = viewer.scene.measurements;
-				const data = measurements.map(m => ({
-					uuid: m.uuid || 'm_' + Date.now(),
-					name: m.name || 'Measurement',
-					points: m.points.map(p => ({ x: p.position.x, y: p.position.y, z: p.position.z })),
-					showDistances: m.showDistances !== undefined ? m.showDistances : true,
-					showCoordinates: m.showCoordinates || false,
-					showArea: m.showArea || false,
-					closed: m.closed || false,
-					showAngles: m.showAngles || false,
-					showHeight: m.showHeight || false,
-					showCircle: m.showCircle || false,
-					showAzimuth: m.showAzimuth || false,
-					showEdges: m.showEdges !== undefined ? m.showEdges : true,
-					color: m.color ? m.color.toArray() : [1, 0, 0]
-				}));
-				
-				localStorage.setItem('potree_measurements', JSON.stringify(data));
-				console.log('💾 Mediciones guardadas:', data.length);
-			} catch(e) {
-				console.error('Error guardando:', e);
-			}
-		}
-		
-		function loadMeasurements() {
-			try {
-				if (!viewer || !viewer.scene) {
-					console.warn('⚠️ Viewer no disponible');
-					return;
-				}
-				
-				// Verificar que THREE esté disponible
-				if (typeof THREE === 'undefined') {
-					console.warn('⏳ THREE no disponible, esperando...');
-					setTimeout(loadMeasurements, 200);
-					return;
-				}
-				
-				const saved = localStorage.getItem('potree_measurements');
-				if (!saved) {
-					console.log('ℹ️ No hay mediciones guardadas');
-					return;
-				}
-				
-				const data = JSON.parse(saved);
-				console.log('📐 Cargando', data.length, 'mediciones...');
-				
-				let count = 0;
-				data.forEach((item, index) => {
-					try {
-						const measure = new Potree.Measure();
-						
-						measure.uuid = item.uuid || 'm_' + Date.now() + '_' + index;
-						measure.name = item.name || 'Measurement';
-						measure.showDistances = item.showDistances !== undefined ? item.showDistances : true;
-						measure.showCoordinates = item.showCoordinates || false;
-						measure.showArea = item.showArea || false;
-						measure.closed = item.closed || false;
-						measure.showAngles = item.showAngles || false;
-						measure.showHeight = item.showHeight || false;
-						measure.showCircle = item.showCircle || false;
-						measure.showAzimuth = item.showAzimuth || false;
-						measure.showEdges = item.showEdges !== undefined ? item.showEdges : true;
-						
-						if (item.color) {
-							measure.color.setRGB(item.color[0], item.color[1], item.color[2]);
+	// ============================================================
+	// 🔐 CONFIGURACIÓN - ¡CAMBIA ESTOS VALORES!
+	// ============================================================
+	
+	const GIST_CONFIG = {
+		GIST_ID: 'TU_GIST_ID_AQUI',        // ID de tu Gist (ej: 'abc123def456')
+		TOKEN: 'TU_TOKEN_DE_GITHUB_AQUI',  // Token con permisos 'gist'
+		FILENAME: 'measurements.json'
+	};
+	
+	// ============================================================
+	// 📦 VARIABLES GLOBALES
+	// ============================================================
+	
+	let viewer = null;
+	let isViewerReady = false;
+	let loadAttempts = 0;
+	const MAX_LOAD_ATTEMPTS = 20;
+	
+	// ============================================================
+	// 💾 GUARDAR EN GIST
+	// ============================================================
+	
+	async function saveToGist(data) {
+		try {
+			const response = await fetch(`https://api.github.com/gists/${GIST_CONFIG.GIST_ID}`, {
+				method: 'PATCH',
+				headers: {
+					'Authorization': `token ${GIST_CONFIG.TOKEN}`,
+					'Content-Type': 'application/json',
+					'Accept': 'application/vnd.github.v3+json'
+				},
+				body: JSON.stringify({
+					files: {
+						[GIST_CONFIG.FILENAME]: {
+							content: JSON.stringify(data, null, 2)
 						}
-						
-						if (item.points && item.points.length > 0) {
-							item.points.forEach(p => {
-								const pos = new THREE.Vector3(p.x, p.y, p.z);
-								measure.addMarker(pos);
-							});
-						}
-						
-						viewer.scene.addMeasurement(measure);
-						count++;
-						
-						// Configurar listeners
-						['marker_moved', 'marker_added', 'marker_removed'].forEach(e => {
-							measure.addEventListener(e, () => setTimeout(saveMeasurements, 50));
-						});
-						
-					} catch(e) {
-						console.error('Error en medición', index, ':', e);
 					}
-				});
-				
-				console.log('✅ Mediciones cargadas:', count);
-				loadAttempted = true;
-				
-			} catch(e) {
-				console.error('Error cargando:', e);
-			}
-		}
-		
-		// ============================================================
-		// INICIALIZACIÓN
-		// ============================================================
-		
-		console.log('🚀 Inicializando Potree Viewer...');
-		
-		viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
-		
-		viewer.setEDLEnabled(true);
-		viewer.setFOV(60);
-		viewer.setPointBudget(8_000_000);
-		viewer.loadSettingsFromURL();
-		
-		viewer.setDescription("");
-		
-		viewer.loadGUI(() => {
-			console.log('🎨 GUI cargada');
-			
-			viewer.setLanguage('en');
-			$("#menu_appearance").next().show();
-			$("#menu_tools").next().show();
-			$("#menu_clipping").next().show();
-			viewer.toggleSidebar();
-		});
-		
-		// ============================================================
-		// EVENTOS
-		// ============================================================
-		
-		viewer.scene.addEventListener('measurement_added', function(e) {
-			console.log('📏 Medición añadida:', e.measurement.name);
-			
-			['marker_moved', 'marker_added', 'marker_removed'].forEach(ev => {
-				e.measurement.addEventListener(ev, () => setTimeout(saveMeasurements, 50));
+				})
 			});
 			
-			setTimeout(saveMeasurements, 100);
-		});
-		
-		viewer.scene.addEventListener('measurement_removed', function(e) {
-			console.log('🗑️ Medición eliminada:', e.measurement.name);
-			saveMeasurements();
-		});
-		
-		window.addEventListener('beforeunload', saveMeasurements);
-		
-		// ============================================================
-		// CARGA DE NUBE DE PUNTOS + MEDICIONES
-		// ============================================================
-		
-		console.log('☁️ Cargando nube de puntos...');
-		
-		Potree.loadPointCloud("./pointclouds/TEST_DATA/metadata.json", "TEST_DATA", e => {
-			console.log('✅ Nube de puntos cargada');
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
 			
-			let scene = viewer.scene;
-			let pointcloud = e.pointcloud;
+			console.log(`💾 ${data.length} mediciones guardadas en Gist`);
+			return true;
+		} catch (e) {
+			console.error('❌ Error guardando en Gist:', e);
+			// Fallback: guardar en localStorage
+			try {
+				localStorage.setItem('potree_measurements_backup', JSON.stringify(data));
+				console.log('💾 Guardado en localStorage (backup)');
+			} catch(e2) {
+				console.error('❌ Error en backup:', e2);
+			}
+			return false;
+		}
+	}
+	
+	// ============================================================
+	// 📂 CARGAR DESDE GIST
+	// ============================================================
+	
+	async function loadFromGist() {
+		try {
+			const response = await fetch(`https://api.github.com/gists/${GIST_CONFIG.GIST_ID}`, {
+				headers: {
+					'Accept': 'application/vnd.github.v3+json'
+				}
+			});
 			
-			let material = pointcloud.material;
-			material.size = 1;
-			material.pointSizeType = Potree.PointSizeType.FIXED;
-			material.shape = Potree.PointShape.CIRCLE;
-			material.activeAttributeName = "rgba";
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
 			
-			scene.addPointCloud(pointcloud);
-			viewer.fitToScreen();
+			const gist = await response.json();
+			const content = gist.files[GIST_CONFIG.FILENAME]?.content;
 			
-			// ⭐ Cargar mediciones DESPUÉS de la nube
-			console.log('📂 Cargando mediciones guardadas...');
-			loadMeasurements();
-			
-			console.log('✅ Proceso completado');
-		});
+			if (content) {
+				const data = JSON.parse(content);
+				console.log(`📂 ${data.length} mediciones cargadas desde Gist`);
+				return data;
+			}
+		} catch (e) {
+			console.warn('⚠️ Error cargando desde Gist:', e.message);
+		}
 		
-		// ============================================================
-		// BOTÓN DE PRUEBA
-		// ============================================================
+		// Fallback a localStorage
+		try {
+			const local = localStorage.getItem('potree_measurements_backup');
+			if (local) {
+				const data = JSON.parse(local);
+				console.log(`📂 ${data.length} mediciones cargadas desde localStorage`);
+				return data;
+			}
+		} catch(e) {
+			console.error('❌ Error en fallback:', e);
+		}
 		
+		return [];
+	}
+	
+	// ============================================================
+	// 📏 FUNCIONES DE MEDICIONES
+	// ============================================================
+	
+	function getMeasurementsData() {
+		if (!viewer || !viewer.scene) return [];
+		
+		return viewer.scene.measurements.map(m => ({
+			uuid: m.uuid || 'm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+			name: m.name || 'Measurement',
+			points: m.points.map(p => ({ x: p.position.x, y: p.position.y, z: p.position.z })),
+			showDistances: m.showDistances !== undefined ? m.showDistances : true,
+			showCoordinates: m.showCoordinates || false,
+			showArea: m.showArea || false,
+			closed: m.closed || false,
+			showAngles: m.showAngles || false,
+			showHeight: m.showHeight || false,
+			showCircle: m.showCircle || false,
+			showAzimuth: m.showAzimuth || false,
+			showEdges: m.showEdges !== undefined ? m.showEdges : true,
+			color: m.color ? m.color.toArray() : [1, 0, 0]
+		}));
+	}
+	
+	async function saveMeasurements() {
+		if (!viewer || !viewer.scene) return false;
+		
+		const data = getMeasurementsData();
+		const result = await saveToGist(data);
+		
+		// Mostrar notificación
+		const notif = document.createElement('div');
+		notif.textContent = result ? '✅ Mediciones guardadas' : '⚠️ Guardado local (fallo en Gist)';
+		notif.style.cssText = `
+			position: fixed; bottom: 250px; right: 20px; 
+			background: ${result ? '#4CAF50' : '#FF9800'}; 
+			color: white; padding: 10px 20px; border-radius: 5px; 
+			z-index: 9999; font-family: Arial; font-size: 14px;
+			box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+			transition: opacity 0.5s;
+		`;
+		document.body.appendChild(notif);
 		setTimeout(() => {
-			const btn = document.createElement('button');
-			btn.textContent = '💾 Guardar';
-			btn.style.cssText = 'position:absolute; bottom:200px; right:20px; z-index:9999; padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:5px; cursor:pointer;';
-			btn.onclick = saveMeasurements;
-			document.body.appendChild(btn);
-		}, 3000);
+			notif.style.opacity = '0';
+			setTimeout(() => notif.remove(), 500);
+		}, 2000);
 		
+		return result;
+	}
+	
+	// ============================================================
+	// 🔄 RESTAURAR MEDICIONES
+	// ============================================================
+	
+	async function restoreMeasurements() {
+		// Verificar que el viewer está listo
+		if (!viewer || !viewer.scene) {
+			console.warn('⏳ Viewer no listo, reintentando...');
+			if (loadAttempts < MAX_LOAD_ATTEMPTS) {
+				loadAttempts++;
+				setTimeout(restoreMeasurements, 500);
+			} else {
+				console.error('❌ Máximo de intentos alcanzado');
+			}
+			return;
+		}
+		
+		// Verificar que THREE está disponible
+		if (typeof THREE === 'undefined') {
+			console.warn('⏳ THREE no disponible, reintentando...');
+			if (loadAttempts < MAX_LOAD_ATTEMPTS) {
+				loadAttempts++;
+				setTimeout(restoreMeasurements, 500);
+			}
+			return;
+		}
+		
+		try {
+			const data = await loadFromGist();
+			
+			if (data.length === 0) {
+				console.log('ℹ️ No hay mediciones para restaurar');
+				isViewerReady = true;
+				return;
+			}
+			
+			console.log(`🔄 Restaurando ${data.length} mediciones...`);
+			let count = 0;
+			
+			data.forEach((item, index) => {
+				try {
+					const measure = new Potree.Measure();
+					
+					measure.uuid = item.uuid || 'm_' + Date.now() + '_' + index;
+					measure.name = item.name || 'Measurement';
+					measure.showDistances = item.showDistances !== undefined ? item.showDistances : true;
+					measure.showCoordinates = item.showCoordinates || false;
+					measure.showArea = item.showArea || false;
+					measure.closed = item.closed || false;
+					measure.showAngles = item.showAngles || false;
+					measure.showHeight = item.showHeight || false;
+					measure.showCircle = item.showCircle || false;
+					measure.showAzimuth = item.showAzimuth || false;
+					measure.showEdges = item.showEdges !== undefined ? item.showEdges : true;
+					
+					if (item.color) {
+						measure.color.setRGB(item.color[0], item.color[1], item.color[2]);
+					}
+					
+					if (item.points && item.points.length > 0) {
+						item.points.forEach(p => {
+							const pos = new THREE.Vector3(p.x, p.y, p.z);
+							measure.addMarker(pos);
+						});
+					}
+					
+					viewer.scene.addMeasurement(measure);
+					count++;
+					
+					// Auto-guardar al modificar
+					['marker_moved', 'marker_added', 'marker_removed'].forEach(e => {
+						measure.addEventListener(e, () => {
+							setTimeout(saveMeasurements, 200);
+						});
+					});
+					
+				} catch(e) {
+					console.error('Error en medición', index, ':', e);
+				}
+			});
+			
+			console.log(`✅ ${count} mediciones restauradas`);
+			isViewerReady = true;
+			
+		} catch(e) {
+			console.error('❌ Error restaurando mediciones:', e);
+		}
+	}
+	
+	// ============================================================
+	// 🚀 INICIALIZACIÓN DEL VIEWER
+	// ============================================================
+	
+	console.log('🚀 Inicializando Potree Viewer...');
+	
+	viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+	
+	viewer.setEDLEnabled(true);
+	viewer.setFOV(60);
+	viewer.setPointBudget(8_000_000);
+	viewer.loadSettingsFromURL();
+	viewer.setDescription("");
+	
+	viewer.loadGUI(() => {
+		console.log('🎨 GUI cargada');
+		viewer.setLanguage('en');
+		$("#menu_appearance").next().show();
+		$("#menu_tools").next().show();
+		$("#menu_clipping").next().show();
+		viewer.toggleSidebar();
+	});
+	
+	// ============================================================
+	// 📋 EVENTOS DEL VIEWER
+	// ============================================================
+	
+	// Cuando se añade una medición
+	viewer.scene.addEventListener('measurement_added', function(e) {
+		console.log('📏 Medición añadida:', e.measurement.name);
+		
+		['marker_moved', 'marker_added', 'marker_removed'].forEach(ev => {
+			e.measurement.addEventListener(ev, () => {
+				setTimeout(saveMeasurements, 200);
+			});
+		});
+		
+		setTimeout(saveMeasurements, 300);
+	});
+	
+	// Cuando se elimina una medición
+	viewer.scene.addEventListener('measurement_removed', function(e) {
+		console.log('🗑️ Medición eliminada:', e.measurement.name);
+		setTimeout(saveMeasurements, 200);
+	});
+	
+	// Guardar al cerrar la página
+	window.addEventListener('beforeunload', () => {
+		saveMeasurements();
+	});
+	
+	// ============================================================
+	// ☁️ CARGA DE NUBE DE PUNTOS
+	// ============================================================
+	
+	console.log('☁️ Cargando nube de puntos...');
+	
+	Potree.loadPointCloud("./pointclouds/TEST_DATA/metadata.json", "TEST_DATA", async e => {
+		console.log('✅ Nube de puntos cargada');
+		
+		let scene = viewer.scene;
+		let pointcloud = e.pointcloud;
+		
+		let material = pointcloud.material;
+		material.size = 1;
+		material.pointSizeType = Potree.PointSizeType.FIXED;
+		material.shape = Potree.PointShape.CIRCLE;
+		material.activeAttributeName = "rgba";
+		
+		scene.addPointCloud(pointcloud);
+		viewer.fitToScreen();
+		
+		// ⭐ RESTAURAR MEDICIONES
+		console.log('📂 Restaurando mediciones guardadas...');
+		loadAttempts = 0;
+		await restoreMeasurements();
+		
+		console.log('✅ Proceso completado');
+	});
+	
+	// ============================================================
+	// 🎛️ BOTONES DE CONTROL
+	// ============================================================
+	
+	setTimeout(() => {
+		const container = document.createElement('div');
+		container.style.cssText = `
+			position: fixed; bottom: 20px; right: 20px; 
+			z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+		`;
+		
+		// Botón Guardar
+		const btnSave = document.createElement('button');
+		btnSave.textContent = '💾 Guardar mediciones';
+		btnSave.style.cssText = `
+			padding: 10px 20px; background: #4CAF50; color: white;
+			border: none; border-radius: 5px; cursor: pointer;
+			font-family: Arial; font-size: 14px; 
+			box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+			transition: transform 0.2s;
+		`;
+		btnSave.onmouseover = () => btnSave.style.transform = 'scale(1.05)';
+		btnSave.onmouseout = () => btnSave.style.transform = 'scale(1)';
+		btnSave.onclick = saveMeasurements;
+		
+		// Botón Recargar
+		const btnReload = document.createElement('button');
+		btnReload.textContent = '🔄 Recargar mediciones';
+		btnReload.style.cssText = `
+			padding: 10px 20px; background: #2196F3; color: white;
+			border: none; border-radius: 5px; cursor: pointer;
+			font-family: Arial; font-size: 14px;
+			box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+			transition: transform 0.2s;
+		`;
+		btnReload.onmouseover = () => btnReload.style.transform = 'scale(1.05)';
+		btnReload.onmouseout = () => btnReload.style.transform = 'scale(1)';
+		btnReload.onclick = async () => {
+			// Limpiar mediciones actuales
+			viewer.scene.measurements = [];
+			// Recargar
+			loadAttempts = 0;
+			await restoreMeasurements();
+		};
+		
+		// Botón Limpiar
+		const btnClear = document.createElement('button');
+		btnClear.textContent = '🗑️ Limpiar todo';
+		btnClear.style.cssText = `
+			padding: 10px 20px; background: #f44336; color: white;
+			border: none; border-radius: 5px; cursor: pointer;
+			font-family: Arial; font-size: 14px;
+			box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+			transition: transform 0.2s;
+		`;
+		btnClear.onmouseover = () => btnClear.style.transform = 'scale(1.05)';
+		btnClear.onmouseout = () => btnClear.style.transform = 'scale(1)';
+		btnClear.onclick = async () => {
+			if (confirm('⚠️ ¿Eliminar TODAS las mediciones?')) {
+				viewer.scene.measurements = [];
+				await saveToGist([]);
+				console.log('🗑️ Todas las mediciones eliminadas');
+				// Mostrar notificación
+				const notif = document.createElement('div');
+				notif.textContent = '🗑️ Mediciones eliminadas';
+				notif.style.cssText = `
+					position: fixed; bottom: 250px; right: 20px; 
+					background: #f44336; color: white; padding: 10px 20px;
+					border-radius: 5px; z-index: 9999; font-family: Arial;
+					box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+					transition: opacity 0.5s;
+				`;
+				document.body.appendChild(notif);
+				setTimeout(() => {
+					notif.style.opacity = '0';
+					setTimeout(() => notif.remove(), 500);
+				}, 2000);
+			}
+		};
+		
+		// Indicador de estado
+		const status = document.createElement('div');
+		status.id = 'gist-status';
+		status.textContent = '☁️ Conectado a Gist';
+		status.style.cssText = `
+			color: #666; font-size: 12px; font-family: Arial;
+			text-align: center; padding: 4px;
+		`;
+		
+		container.appendChild(btnSave);
+		container.appendChild(btnReload);
+		container.appendChild(btnClear);
+		container.appendChild(status);
+		document.body.appendChild(container);
+		
+	}, 3000);
+	
+	// ============================================================
+	// 📋 COMANDOS EN CONSOLA
+	// ============================================================
+	
+	console.log(`
+	🔧 Comandos disponibles:
+	
+	• saveMeasurements()      - Guardar mediciones en Gist
+	• restoreMeasurements()   - Recargar mediciones desde Gist
+	• viewer.scene.measurements - Ver mediciones actuales
+	• getMeasurementsData()   - Obtener datos en JSON
+	`);
+	
+	// Exponer funciones útiles globalmente
+	window.saveMeasurements = saveMeasurements;
+	window.restoreMeasurements = restoreMeasurements;
+	window.getMeasurementsData = getMeasurementsData;
+	
+	// ============================================================
+	// ⏰ AUTO-GUARDADO (cada 30 segundos)
+	// ============================================================
+	
+	setInterval(() => {
+		if (viewer && viewer.scene && viewer.scene.measurements.length > 0) {
+			saveMeasurements();
+		}
+	}, 30000);
+	
 	</script>
 	
 </body>
