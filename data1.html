@@ -38,8 +38,8 @@
 	// ============================================================
 	
 	const GIST_CONFIG = {
-		GIST_ID: 'TU_GIST_ID_AQUI',        // ID de tu Gist (ej: 'abc123def456')
-		TOKEN: 'TU_TOKEN_DE_GITHUB_AQUI',  // Token con permisos 'gist'
+		GIST_ID: 'TU_GIST_ID_AQUI',
+		TOKEN: 'TU_TOKEN_DE_GITHUB_AQUI',
 		FILENAME: 'measurements.json'
 	};
 	
@@ -49,8 +49,7 @@
 	
 	let viewer = null;
 	let isViewerReady = false;
-	let loadAttempts = 0;
-	const MAX_LOAD_ATTEMPTS = 20;
+	let measurementsRestored = false;
 	
 	// ============================================================
 	// 💾 GUARDAR EN GIST
@@ -82,7 +81,6 @@
 			return true;
 		} catch (e) {
 			console.error('❌ Error guardando en Gist:', e);
-			// Fallback: guardar en localStorage
 			try {
 				localStorage.setItem('potree_measurements_backup', JSON.stringify(data));
 				console.log('💾 Guardado en localStorage (backup)');
@@ -121,7 +119,6 @@
 			console.warn('⚠️ Error cargando desde Gist:', e.message);
 		}
 		
-		// Fallback a localStorage
 		try {
 			const local = localStorage.getItem('potree_measurements_backup');
 			if (local) {
@@ -166,7 +163,6 @@
 		const data = getMeasurementsData();
 		const result = await saveToGist(data);
 		
-		// Mostrar notificación
 		const notif = document.createElement('div');
 		notif.textContent = result ? '✅ Mediciones guardadas' : '⚠️ Guardado local (fallo en Gist)';
 		notif.style.cssText = `
@@ -187,38 +183,44 @@
 	}
 	
 	// ============================================================
-	// 🔄 RESTAURAR MEDICIONES
+	// 🔄 RESTAURAR MEDICIONES - VERSIÓN CORREGIDA
 	// ============================================================
 	
 	async function restoreMeasurements() {
-		// Verificar que el viewer está listo
+		// ⭐ Verificar que el viewer esté listo y tenga scene
 		if (!viewer || !viewer.scene) {
-			console.warn('⏳ Viewer no listo, reintentando...');
-			if (loadAttempts < MAX_LOAD_ATTEMPTS) {
-				loadAttempts++;
-				setTimeout(restoreMeasurements, 500);
-			} else {
-				console.error('❌ Máximo de intentos alcanzado');
-			}
+			console.warn('⏳ Viewer no listo, reintentando en 500ms...');
+			setTimeout(restoreMeasurements, 500);
 			return;
 		}
 		
-		// Verificar que THREE está disponible
-		if (typeof THREE === 'undefined') {
-			console.warn('⏳ THREE no disponible, reintentando...');
-			if (loadAttempts < MAX_LOAD_ATTEMPTS) {
-				loadAttempts++;
-				setTimeout(restoreMeasurements, 500);
-			}
+		// ⭐ Verificar que Potree.Measure existe (Potree cargado)
+		if (typeof Potree === 'undefined' || typeof Potree.Measure === 'undefined') {
+			console.warn('⏳ Potree.Measure no disponible, reintentando en 500ms...');
+			setTimeout(restoreMeasurements, 500);
+			return;
+		}
+		
+		// ⭐ Verificar que viewer.scene.measurements existe
+		if (!viewer.scene.measurements) {
+			console.warn('⏳ viewer.scene.measurements no disponible, reintentando...');
+			setTimeout(restoreMeasurements, 500);
+			return;
+		}
+		
+		// Si ya se restauraron, no hacer nada
+		if (measurementsRestored) {
+			console.log('ℹ️ Mediciones ya restauradas');
 			return;
 		}
 		
 		try {
+			console.log('🔍 Intentando cargar mediciones...');
 			const data = await loadFromGist();
 			
 			if (data.length === 0) {
 				console.log('ℹ️ No hay mediciones para restaurar');
-				isViewerReady = true;
+				measurementsRestored = true;
 				return;
 			}
 			
@@ -255,7 +257,6 @@
 					viewer.scene.addMeasurement(measure);
 					count++;
 					
-					// Auto-guardar al modificar
 					['marker_moved', 'marker_added', 'marker_removed'].forEach(e => {
 						measure.addEventListener(e, () => {
 							setTimeout(saveMeasurements, 200);
@@ -268,7 +269,7 @@
 			});
 			
 			console.log(`✅ ${count} mediciones restauradas`);
-			isViewerReady = true;
+			measurementsRestored = true;
 			
 		} catch(e) {
 			console.error('❌ Error restaurando mediciones:', e);
@@ -302,7 +303,6 @@
 	// 📋 EVENTOS DEL VIEWER
 	// ============================================================
 	
-	// Cuando se añade una medición
 	viewer.scene.addEventListener('measurement_added', function(e) {
 		console.log('📏 Medición añadida:', e.measurement.name);
 		
@@ -315,13 +315,11 @@
 		setTimeout(saveMeasurements, 300);
 	});
 	
-	// Cuando se elimina una medición
 	viewer.scene.addEventListener('measurement_removed', function(e) {
 		console.log('🗑️ Medición eliminada:', e.measurement.name);
 		setTimeout(saveMeasurements, 200);
 	});
 	
-	// Guardar al cerrar la página
 	window.addEventListener('beforeunload', () => {
 		saveMeasurements();
 	});
@@ -347,12 +345,15 @@
 		scene.addPointCloud(pointcloud);
 		viewer.fitToScreen();
 		
-		// ⭐ RESTAURAR MEDICIONES
-		console.log('📂 Restaurando mediciones guardadas...');
-		loadAttempts = 0;
-		await restoreMeasurements();
+		// ⭐ ESPERAR UN MOMENTO Y LUEGO RESTAURAR
+		console.log('📂 Esperando a que el viewer esté listo...');
 		
-		console.log('✅ Proceso completado');
+		// Esperar un poco para que el viewer termine de inicializarse
+		setTimeout(async () => {
+			console.log('📂 Restaurando mediciones guardadas...');
+			await restoreMeasurements();
+			console.log('✅ Proceso completado');
+		}, 1000);
 	});
 	
 	// ============================================================
@@ -366,7 +367,6 @@
 			z-index: 9999; display: flex; flex-direction: column; gap: 8px;
 		`;
 		
-		// Botón Guardar
 		const btnSave = document.createElement('button');
 		btnSave.textContent = '💾 Guardar mediciones';
 		btnSave.style.cssText = `
@@ -380,7 +380,6 @@
 		btnSave.onmouseout = () => btnSave.style.transform = 'scale(1)';
 		btnSave.onclick = saveMeasurements;
 		
-		// Botón Recargar
 		const btnReload = document.createElement('button');
 		btnReload.textContent = '🔄 Recargar mediciones';
 		btnReload.style.cssText = `
@@ -393,14 +392,11 @@
 		btnReload.onmouseover = () => btnReload.style.transform = 'scale(1.05)';
 		btnReload.onmouseout = () => btnReload.style.transform = 'scale(1)';
 		btnReload.onclick = async () => {
-			// Limpiar mediciones actuales
+			measurementsRestored = false;
 			viewer.scene.measurements = [];
-			// Recargar
-			loadAttempts = 0;
 			await restoreMeasurements();
 		};
 		
-		// Botón Limpiar
 		const btnClear = document.createElement('button');
 		btnClear.textContent = '🗑️ Limpiar todo';
 		btnClear.style.cssText = `
@@ -416,26 +412,11 @@
 			if (confirm('⚠️ ¿Eliminar TODAS las mediciones?')) {
 				viewer.scene.measurements = [];
 				await saveToGist([]);
+				measurementsRestored = false;
 				console.log('🗑️ Todas las mediciones eliminadas');
-				// Mostrar notificación
-				const notif = document.createElement('div');
-				notif.textContent = '🗑️ Mediciones eliminadas';
-				notif.style.cssText = `
-					position: fixed; bottom: 250px; right: 20px; 
-					background: #f44336; color: white; padding: 10px 20px;
-					border-radius: 5px; z-index: 9999; font-family: Arial;
-					box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-					transition: opacity 0.5s;
-				`;
-				document.body.appendChild(notif);
-				setTimeout(() => {
-					notif.style.opacity = '0';
-					setTimeout(() => notif.remove(), 500);
-				}, 2000);
 			}
 		};
 		
-		// Indicador de estado
 		const status = document.createElement('div');
 		status.id = 'gist-status';
 		status.textContent = '☁️ Conectado a Gist';
@@ -465,13 +446,12 @@
 	• getMeasurementsData()   - Obtener datos en JSON
 	`);
 	
-	// Exponer funciones útiles globalmente
 	window.saveMeasurements = saveMeasurements;
 	window.restoreMeasurements = restoreMeasurements;
 	window.getMeasurementsData = getMeasurementsData;
 	
 	// ============================================================
-	// ⏰ AUTO-GUARDADO (cada 30 segundos)
+	// ⏰ AUTO-GUARDADO
 	// ============================================================
 	
 	setInterval(() => {
