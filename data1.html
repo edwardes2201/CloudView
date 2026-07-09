@@ -40,6 +40,7 @@
 		// ============================================================
 		
 		let viewer;
+		let measurementsLoaded = false;
 		
 		// ============================================================
 		// FUNCIONES DE PERSISTENCIA DE MEDICIONES
@@ -157,6 +158,7 @@
 				});
 				
 				console.log(`✅ Mediciones cargadas: ${loadedCount}`);
+				measurementsLoaded = true;
 				
 			} catch (error) {
 				console.error('❌ Error al cargar mediciones:', error);
@@ -210,14 +212,8 @@
 			$("#menu_clipping").next().show();
 			viewer.toggleSidebar();
 			
-			// Cargar mediciones guardadas
-			console.log('📂 Cargando mediciones guardadas...');
-			loadMeasurements();
-			
-			// Verificar estado
-			setTimeout(() => {
-				console.log(`📊 Estado: ${viewer.scene.measurements.length} mediciones`);
-			}, 500);
+			// No cargar mediciones aquí, esperar a que la nube de puntos esté lista
+			console.log('⏳ Esperando nube de puntos para cargar mediciones...');
 		});
 		
 		// ============================================================
@@ -268,7 +264,7 @@
 		};
 		
 		// ============================================================
-		// CARGA DE NUBE DE PUNTOS
+		// CARGA DE NUBE DE PUNTOS + MEDICIONES
 		// ============================================================
 		
 		console.log('☁️ Cargando nube de puntos...');
@@ -288,21 +284,12 @@
 			scene.addPointCloud(pointcloud);
 			viewer.fitToScreen();
 			
+			// ⭐⭐⭐ AHORA que la nube de puntos está cargada, cargamos las mediciones
+			console.log('📂 Cargando mediciones guardadas...');
+			loadMeasurements();
+			
 			console.log('✅ Proceso completado');
 		});
-		
-		// ============================================================
-		// BOTONES DE CONTROL (Opcional)
-		// ============================================================
-		
-		// Botón para guardar manualmente
-		setTimeout(() => {
-			const btn = document.createElement('button');
-			btn.textContent = '💾 Guardar Mediciones';
-			btn.style.cssText = 'position:absolute; bottom:200px; right:20px; z-index:9999; padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:5px; cursor:pointer;';
-			btn.onclick = saveMeasurements;
-			document.body.appendChild(btn);
-		}, 3000);
 		
 	</script>
 	
