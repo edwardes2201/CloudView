@@ -1,4 +1,3 @@
-// https://github.com/mbostock/shapefile Version 0.6.2. Copyright 2017 Mike Bostock.
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -227,7 +226,7 @@ var readNull = function() {
 };
 
 var readPoint = function(record) {
-  return {type: "Point", coordinates: [record.getFloat64(4, true), record.getFloat64(12, true)]};
+  return {type: "Point", coordinates: [record.getFloat64(4, true), record.getFloat64(12, true), record.getFloat64(20, true)]};
 };
 
 var readPolygon = function(record) {
@@ -306,15 +305,19 @@ var readPolyLine = function(record) {
 };
 
 var readPolyLineZ = function(record) {
+	
   var i = 44, j, n = record.getInt32(36, true), m = record.getInt32(40, true), parts = new Array(n), points = new Array(m);
   for (j = 0; j < n; ++j, i += 4) parts[j] = record.getInt32(i, true);
   for (j = 0; j < m; ++j, i += 16) points[j] = [record.getFloat64(i, true), record.getFloat64(i + 8, true)];
   // Advance two doubles (z min, z max)
   i += 16;
-  for (j = 0; j < m; ++j, i += 8) points[j].push(record.getFloat64(i, true));
+  
+  for (j = 0; j < m; ++j, i += 8) points[j].push(record.getFloat64(i, true)); 
+  
   return n === 1
       ? {type: "LineStringZ", coordinates: points}
       : {type: "MultiLineStringZ", coordinates: parts.map(function(i, j) { return points.slice(i, parts[j + 1]); })};
+	  
 };
 
 var shp_read = function() {
@@ -332,7 +335,7 @@ var shp_read = function() {
 var types$1 = {
   0: readNull,
   1: readPoint,
-  3: readPolyLine,
+  3: readPolyLine, //nincs z
   5: readPolygon,
   8: readMultiPoint,
   11: readPoint,
@@ -351,6 +354,7 @@ var shp = function(source) {
 function Shp(source, header) {
   var type = header.getInt32(32, true);
   if (!(type in types$1)) throw new Error("unsupported shape type: " + type);
+  console.log(type);
   this._source = source;
   this._type = types$1[type];
   this.bbox = [header.getFloat64(36, true), header.getFloat64(44, true), header.getFloat64(52, true), header.getFloat64(60, true)];
