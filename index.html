@@ -12,7 +12,23 @@
     <link rel="stylesheet" type="text/css" href="./libs/jstree/themes/mixed/style.css">
     
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; }
+        /* Asegurar que Potree ocupe toda la pantalla */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+        
+        .potree_container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            left: 0px;
+            top: 0px;
+        }
         
         #potree_render_area {
             position: absolute;
@@ -25,26 +41,50 @@
         
         #potree_sidebar_container {
             position: absolute;
-            z-index: 0;
+            z-index: 10;
             width: 350px;
             height: 100%;
-            overflow-y: scroll;
+            overflow-y: auto;
             font-size: 85%;
             border-right: 1px solid black;
             background-color: #19282C;
-            display: none;
+            display: block;
         }
 
+        /* Botón para toggle del sidebar */
+        .potree_menu_toggle {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            background: rgba(25, 40, 44, 0.85);
+            border: 1px solid #39474B;
+            border-radius: 4px;
+            color: white;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .potree_menu_toggle:hover {
+            background: rgba(45, 109, 130, 0.85);
+        }
+
+        /* Botón de capas */
         #toggleLayerBtn {
             position: absolute;
-            top: 80px;
-            right: 10px;
+            top: 60px;
+            left: 10px;
             background: rgba(25, 40, 44, 0.85);
             border: 1px solid #39474B;
             color: #cccccc;
             padding: 8px 12px;
             border-radius: 4px;
-            z-index: 1001;
+            z-index: 100;
             cursor: pointer;
             font-size: 14px;
             user-select: none;
@@ -55,16 +95,18 @@
             background: rgba(45, 109, 130, 0.85);
         }
 
+        /* Panel de capas */
         .measurement-layer-control {
             position: absolute;
-            top: 120px;
-            right: 10px;
+            top: 100px;
+            left: 10px;
             background: rgba(25, 40, 44, 0.95);
             color: #cccccc;
             padding: 15px;
             border-radius: 4px;
             z-index: 1000;
             min-width: 220px;
+            max-width: 280px;
             border: 1px solid #39474B;
             display: none;
             max-height: 70vh;
@@ -228,6 +270,7 @@
             margin-top: 8px;
         }
 
+        /* Mensajes flotantes */
         .potree_message {
             position: absolute;
             bottom: 30px;
@@ -244,34 +287,43 @@
             font-size: 14px;
         }
 
-        #infoMessage {
-            position: absolute;
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: rgba(255,255,255,0.5);
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            text-align: center;
-            pointer-events: none;
-            z-index: 999;
+        /* Scrollbar personalizada para el sidebar */
+        #potree_sidebar_container::-webkit-scrollbar {
+            width: 6px;
+        }
+        #potree_sidebar_container::-webkit-scrollbar-thumb {
+            background: #39474B;
+            border-radius: 3px;
+        }
+        #potree_sidebar_container::-webkit-scrollbar-track {
+            background: #19282C;
+        }
+
+        /* Ajustes para el panel de capas */
+        .measurement-layer-control::-webkit-scrollbar {
+            width: 4px;
+        }
+        .measurement-layer-control::-webkit-scrollbar-thumb {
+            background: #39474B;
+            border-radius: 2px;
         }
     </style>
 </head>
 
 <body>
-    <div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px;">
+    <!-- Contenedor principal de Potree -->
+    <div class="potree_container">
         <div id="potree_render_area"></div>
         <div id="potree_sidebar_container"></div>
     </div>
 
-    <div id="infoMessage">
-        <div>Usa las herramientas de medición (Distancia, Área, etc.)</div>
-        <div style="font-size: 11px; color: #666;">Las mediciones se guardan automáticamente en el navegador</div>
-    </div>
+    <!-- Botón para toggle del sidebar -->
+    <div class="potree_menu_toggle" id="menuToggle" title="Mostrar/Ocultar panel">☰</div>
 
+    <!-- Botón de capas -->
     <button id="toggleLayerBtn">📐 Capas</button>
 
+    <!-- Panel de capas -->
     <div id="measurementLayerControl" class="measurement-layer-control">
         <button class="close-btn" id="toggleLayerPanel">✕</button>
         <h4>📐 Capas de Mediciones</h4>
@@ -287,6 +339,7 @@
         <span id="measurementCount">0 mediciones</span>
     </div>
 
+    <!-- Contenedor de mensajes -->
     <div id="messageContainer" class="potree_message"></div>
 
     <!-- Scripts -->
@@ -304,7 +357,9 @@
     <script src="./libs/plasio/js/laslaz.js"></script>
 
     <script>
-        // --- Inicializar el viewer ---
+        // ============================================================
+        // 1. INICIALIZAR VIEWER
+        // ============================================================
         const viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
         
         viewer.setEDLEnabled(true);
@@ -313,16 +368,34 @@
         viewer.loadSettingsFromURL();
         viewer.setDescription("");
         
+        // ============================================================
+        // 2. CARGAR GUI DE POTREE
+        // ============================================================
         viewer.loadGUI(() => {
+            console.log('✅ GUI de Potree cargada');
             viewer.setLanguage('en');
+            
+            // Mostrar los menús principales
             $("#menu_appearance").next().show();
             $("#menu_tools").next().show();
             $("#menu_clipping").next().show();
+            
+            // Mostrar el sidebar por defecto
+            viewer.toggleSidebar();
+            
+            // Asegurar que el botón de toggle funcione
+            $('#menuToggle').off('click').on('click', function() {
+                viewer.toggleSidebar();
+            });
         });
-        
-        // --- Función para mostrar mensajes ---
+
+        // ============================================================
+        // 3. FUNCIÓN PARA MOSTRAR MENSAJES
+        // ============================================================
         function showMessage(text, duration = 3000) {
             const container = document.getElementById('messageContainer');
+            if (!container) return;
+            
             container.textContent = text;
             container.style.display = 'block';
             container.style.opacity = '1';
@@ -338,11 +411,13 @@
             }
         }
 
-        // --- Cargar la nube de puntos ---
-        console.log('Cargando nube de puntos...');
+        // ============================================================
+        // 4. CARGAR NUBE DE PUNTOS
+        // ============================================================
+        console.log('📦 Cargando nube de puntos...');
         
         Potree.loadPointCloud("./pointclouds/TEST_DATA/metadata.json", "TEST_DATA", (e) => {
-            console.log('Nube de puntos cargada correctamente');
+            console.log('✅ Nube de puntos cargada');
             const pointcloud = e.pointcloud;
             
             const material = pointcloud.material;
@@ -356,12 +431,14 @@
             
             showMessage('✅ Nube de puntos cargada correctamente', 3000);
         }).catch((err) => {
-            console.error('Error al cargar la nube:', err);
+            console.error('⚠️ Error al cargar la nube:', err);
             showMessage('⚠️ No se pudo cargar la nube de puntos. Las mediciones aún funcionan.', 5000);
         });
 
-        // --- Sistema de persistencia (código simplificado) ---
-        class SimpleStorage {
+        // ============================================================
+        // 5. SISTEMA DE PERSISTENCIA DE MEDICIONES
+        // ============================================================
+        class MeasurementStorage {
             constructor() {
                 this.storageKey = 'potree_measurements_data';
                 this.layerKey = 'potree_layers_data';
@@ -369,28 +446,35 @@
                 this.layerColors = new Map();
                 this.loadLayers();
                 
-                // Configurar auto-guardado
+                // Auto-guardado cada 2 segundos
                 let saveTimeout = null;
                 viewer.addEventListener('update', () => {
                     if (saveTimeout) clearTimeout(saveTimeout);
-                    saveTimeout = setTimeout(() => this.saveMeasurements(), 1000);
+                    saveTimeout = setTimeout(() => this.saveMeasurements(), 2000);
                 });
                 
-                // Eventos de la escena
+                // Guardar cuando se agregan o eliminan mediciones
                 viewer.scene.addEventListener('measurement_added', () => {
-                    setTimeout(() => this.saveMeasurements(), 100);
+                    setTimeout(() => this.saveMeasurements(), 500);
                 });
                 viewer.scene.addEventListener('measurement_removed', () => {
                     this.saveMeasurements();
                 });
                 
-                this.loadMeasurements();
+                // Cargar mediciones guardadas
+                setTimeout(() => {
+                    const count = this.loadMeasurements();
+                    if (count > 0) {
+                        showMessage(`📐 Cargadas ${count} mediciones`, 3000);
+                    }
+                }, 1000);
+                
                 console.log('[Storage] Inicializado');
             }
 
             getLayerColor(name) {
                 if (this.layerColors.has(name)) return this.layerColors.get(name);
-                const colors = ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#F7DC6F','#BB8FCE','#F1948A','#82E0AA'];
+                const colors = ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#F7DC6F','#BB8FCE','#F1948A','#82E0AA','#85C1E9','#D7BDE2'];
                 let hash = 0;
                 for (let i = 0; i < name.length; i++) {
                     hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -413,6 +497,7 @@
                 if (name === 'default' || !this.layers.has(name)) return false;
                 this.layers.delete(name);
                 this.layerColors.delete(name);
+                // Mover mediciones a default
                 for (const m of viewer.scene.measurements) {
                     if (m.layer === name) m.layer = 'default';
                 }
@@ -423,10 +508,13 @@
 
             saveLayers() {
                 try {
-                    const data = { layers: Array.from(this.layers), colors: {} };
+                    const data = { 
+                    layers: Array.from(this.layers), 
+                    colors: {} 
+                };
                     for (const [k, v] of this.layerColors) data.colors[k] = v;
                     localStorage.setItem(this.layerKey, JSON.stringify(data));
-                } catch(e) { console.error(e); }
+                } catch(e) { console.warn('Error guardando capas:', e); }
             }
 
             loadLayers() {
@@ -440,7 +528,7 @@
                             }
                         }
                     }
-                } catch(e) { console.error(e); }
+                } catch(e) { console.warn('Error cargando capas:', e); }
                 if (!this.layers.has('default')) this.layers.add('default');
             }
 
@@ -467,17 +555,22 @@
                             persistent: m.persistent !== undefined ? m.persistent : true
                         }));
                     localStorage.setItem(this.storageKey, JSON.stringify(data));
-                } catch(e) { console.error(e); }
+                } catch(e) { console.warn('Error guardando mediciones:', e); }
             }
 
             loadMeasurements() {
                 try {
                     const data = localStorage.getItem(this.storageKey);
-                    if (!data) return;
+                    if (!data) return 0;
+                    
                     const measurements = JSON.parse(data);
+                    let loaded = 0;
+                    
+                    // Limpiar mediciones persistentes existentes
                     for (const m of viewer.scene.measurements) {
                         if (m.persistent !== false) viewer.scene.removeMeasurement(m);
                     }
+                    
                     for (const mData of measurements) {
                         try {
                             const measure = new Potree.Measure();
@@ -494,14 +587,27 @@
                             measure._showAzimuth = mData.showAzimuth || false;
                             measure._showEdges = mData.showEdges !== undefined ? mData.showEdges : true;
                             measure.persistent = mData.persistent !== undefined ? mData.persistent : true;
-                            if (mData.color) measure.color = new THREE.Color(mData.color);
+                            
+                            if (mData.color) {
+                                measure.color = new THREE.Color(mData.color);
+                            }
+                            
                             for (const p of mData.points) {
                                 measure.addMarker(new THREE.Vector3(...p));
                             }
+                            
                             viewer.scene.addMeasurement(measure);
-                        } catch(e) { console.warn('Error cargando medición:', e); }
+                            loaded++;
+                        } catch(e) {
+                            console.warn('Error cargando medición:', e);
+                        }
                     }
-                } catch(e) { console.error(e); }
+                    
+                    return loaded;
+                } catch(e) {
+                    console.warn('Error cargando mediciones:', e);
+                    return 0;
+                }
             }
 
             clearAll() {
@@ -509,11 +615,14 @@
                 localStorage.removeItem(this.layerKey);
                 this.layers = new Set(['default']);
                 this.layerColors.clear();
+                viewer.scene.removeAllMeasurements();
             }
         }
 
-        // --- UI para capas ---
-        class SimpleUI {
+        // ============================================================
+        // 6. UI DE CAPAS
+        // ============================================================
+        class LayerUI {
             constructor(storage) {
                 this.storage = storage;
                 this.panel = document.getElementById('measurementLayerControl');
@@ -527,30 +636,35 @@
                 this.countDisplay = document.getElementById('measurementCount');
                 this.visible = false;
 
+                // Event listeners
                 this.toggleBtn.addEventListener('click', () => this.toggle());
                 this.closeBtn.addEventListener('click', () => this.hide());
                 this.addBtn.addEventListener('click', () => this.addLayer());
                 this.newLayerInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') this.addLayer();
                 });
+                
                 this.saveBtn.addEventListener('click', () => {
                     this.storage.saveMeasurements();
                     showMessage('💾 Mediciones guardadas', 2000);
                 });
+                
                 this.clearBtn.addEventListener('click', () => {
-                    if (confirm('¿Eliminar todas las mediciones?')) {
+                    if (confirm('¿Eliminar TODAS las mediciones guardadas?')) {
                         this.storage.clearAll();
-                        viewer.scene.removeAllMeasurements();
                         this.render();
-                        showMessage('🗑 Mediciones eliminadas', 2000);
+                        showMessage('🗑 Todas las mediciones eliminadas', 2000);
                     }
                 });
 
-                this.storage.saveLayers = this.storage.saveLayers.bind(this.storage);
-                this.render();
-                setInterval(() => this.render(), 1000);
+                // Actualizar UI cuando cambian las mediciones
                 viewer.scene.addEventListener('measurement_added', () => this.render());
                 viewer.scene.addEventListener('measurement_removed', () => this.render());
+                
+                // Renderizar inicial
+                setTimeout(() => this.render(), 500);
+                
+                console.log('[UI] Inicializado');
             }
 
             toggle() {
@@ -572,15 +686,27 @@
 
             addLayer() {
                 const name = this.newLayerInput.value.trim();
-                if (!name) return;
+                if (!name) {
+                    this.newLayerInput.style.borderColor = '#ff6b6b';
+                    setTimeout(() => this.newLayerInput.style.borderColor = '', 2000);
+                    return;
+                }
+                
                 if (this.storage.addLayer(name)) {
                     this.newLayerInput.value = '';
-                    // Asignar a mediciones seleccionadas
-                    for (const obj of viewer.inputHandler.selection || []) {
-                        if (obj instanceof Potree.Measure) obj.layer = name;
+                    // Asignar la nueva capa a las mediciones seleccionadas
+                    const selection = viewer.inputHandler.selection || [];
+                    for (const obj of selection) {
+                        if (obj instanceof Potree.Measure) {
+                            obj.layer = name;
+                        }
                     }
                     this.storage.saveMeasurements();
                     this.render();
+                    showMessage(`✅ Capa "${name}" creada`, 1500);
+                } else {
+                    this.newLayerInput.style.borderColor = '#ff6b6b';
+                    setTimeout(() => this.newLayerInput.style.borderColor = '', 2000);
                 }
             }
 
@@ -593,7 +719,17 @@
                 }
 
                 this.layerList.innerHTML = '';
-                const sorted = layers.sort((a,b) => a === 'default' ? -1 : b === 'default' ? 1 : a.localeCompare(b));
+                
+                if (layers.length === 0) {
+                    this.layerList.innerHTML = '<div style="color: #666; text-align: center; padding: 10px;">No hay capas</div>';
+                    return;
+                }
+
+                const sorted = layers.sort((a, b) => {
+                    if (a === 'default') return -1;
+                    if (b === 'default') return 1;
+                    return a.localeCompare(b);
+                });
 
                 for (const layer of sorted) {
                     const count = stats[layer] || 0;
@@ -602,21 +738,29 @@
 
                     const div = document.createElement('div');
                     div.className = 'layer-item';
-                    div.innerHTML = `
-                        <div class="layer-name">
-                            <span class="layer-color" style="background:${color}"></span>
-                            <span>${layer}</span>
-                            <span class="layer-count">(${count})</span>
-                        </div>
-                        <div class="layer-actions">
-                            ${!isDefault ? `<button class="delete-layer" onclick="window._ui.storage.removeLayer('${layer}');window._ui.render();">✕</button>` : ''}
-                        </div>
+                    div.dataset.layer = layer;
+                    
+                    // Nombre de la capa
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'layer-name';
+                    nameDiv.innerHTML = `
+                        <span class="layer-color" style="background:${color}"></span>
+                        <span>${layer}</span>
+                        <span class="layer-count">(${count})</span>
                     `;
-                    // Visibilidad
+                    div.appendChild(nameDiv);
+                    
+                    // Acciones
+                    const actions = document.createElement('div');
+                    actions.className = 'layer-actions';
+                    
+                    // Botón de visibilidad
                     const visBtn = document.createElement('button');
                     visBtn.textContent = '👁';
+                    visBtn.title = 'Mostrar/Ocultar capa';
+                    visBtn.dataset.visible = 'true';
                     visBtn.style.opacity = '0.6';
-                    visBtn.onclick = (e) => {
+                    visBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         const visible = visBtn.dataset.visible !== 'false';
                         for (const m of viewer.scene.measurements) {
@@ -624,19 +768,37 @@
                         }
                         visBtn.dataset.visible = visible ? 'false' : 'true';
                         visBtn.style.opacity = visible ? '0.3' : '0.8';
-                    };
-                    div.querySelector('.layer-actions').prepend(visBtn);
-
-                    // Seleccionar capa
-                    div.onclick = () => {
+                    });
+                    actions.appendChild(visBtn);
+                    
+                    // Botón eliminar (solo si no es default)
+                    if (!isDefault) {
+                        const delBtn = document.createElement('button');
+                        delBtn.textContent = '✕';
+                        delBtn.className = 'delete-layer';
+                        delBtn.title = 'Eliminar capa';
+                        delBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (confirm(`¿Eliminar la capa "${layer}" y mover sus mediciones a "default"?`)) {
+                                this.storage.removeLayer(layer);
+                                this.render();
+                            }
+                        });
+                        actions.appendChild(delBtn);
+                    }
+                    
+                    div.appendChild(actions);
+                    
+                    // Click para seleccionar mediciones de esta capa
+                    div.addEventListener('click', () => {
                         viewer.inputHandler.deselectAll();
                         for (const m of viewer.scene.measurements) {
                             if (m.layer === layer) {
                                 viewer.inputHandler.toggleSelection(m);
                             }
                         }
-                    };
-
+                    });
+                    
                     this.layerList.appendChild(div);
                 }
 
@@ -645,30 +807,38 @@
             }
         }
 
-        // --- Inicializar todo ---
+        // ============================================================
+        // 7. INICIALIZAR TODO
+        // ============================================================
         viewer.onGUILoaded(() => {
-            console.log('GUI cargada, iniciando sistema de capas...');
-            const storage = new SimpleStorage();
-            window._storage = storage;
-            const ui = new SimpleUI(storage);
-            window._ui = ui;
+            console.log('🚀 Inicializando sistema de capas...');
             
-            // Cargar mediciones guardadas
+            const storage = new MeasurementStorage();
+            const ui = new LayerUI(storage);
+            
+            // Exponer para debugging
+            window.__storage = storage;
+            window.__ui = ui;
+            
+            // Mostrar mensaje de bienvenida
             setTimeout(() => {
-                storage.loadMeasurements();
-                ui.render();
                 const count = viewer.scene.measurements.length;
                 if (count > 0) {
-                    showMessage(`📐 Cargadas ${count} mediciones`, 3000);
+                    showMessage(`📐 ${count} mediciones cargadas`, 3000);
+                } else {
+                    showMessage('📐 Usa las herramientas para crear mediciones. Se guardan automáticamente.', 4000);
                 }
-            }, 500);
+            }, 2000);
         });
 
-        // Exponer funciones para debugging
+        // ============================================================
+        // 8. DEBUG - Exponer viewer globalmente
+        // ============================================================
         window.viewer = viewer;
         window.showMessage = showMessage;
 
         console.log('✅ Potree con sistema de capas iniciado');
+        console.log('📐 Herramientas disponibles en el sidebar');
     </script>
 </body>
 </html>
