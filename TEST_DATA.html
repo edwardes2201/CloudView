@@ -63,8 +63,8 @@
 			let pointcloud = e.pointcloud;
 			
 			let material = pointcloud.material;
-			material.size = 0.3;
-			material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+			material.size = 1;
+			material.pointSizeType = Potree.PointSizeType.FIXED;
 			material.shape = Potree.PointShape.CIRCLE;
 			material.activeAttributeName = "rgba";
 			
