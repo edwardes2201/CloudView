@@ -1,0 +1,32 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            239818.7289000044,
+            8986963.421399912,
+            3329.6684000460396
+          ],
+          [
+            239814.01559998794,
+            8986948.19509995,
+            3328.347600002397
+          ]
+        ]
+      },
+      "properties": {
+        "name": "Distance",
+        "layer": "vereda",
+        "visible": true,
+        "color": "#ff0000",
+        "closed": false,
+        "showDistances": true,
+        "uuid": "5BBE5790-9B6E-43F2-BE03-B6902137A670"
+      }
+    }
+  ]
+}
