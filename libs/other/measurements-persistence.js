@@ -85,13 +85,19 @@
 		m.closed = closed;
 		m.showDistances = props.showDistances !== false;
 
+		// No usamos "new THREE.Vector3(...)" directamente porque en algunos builds de
+		// Potree la variable global THREE no existe (viene empaquetada adentro de
+		// potree.js). En cambio, clonamos un vector que Potree ya nos da hecho
+		// (m.position, heredado de THREE.Object3D) y le cambiamos los valores.
 		for (const c of coords) {
 			const [x, y, z] = c;
-			m.addMarker(new THREE.Vector3(x, y, z));
+			const v = m.position.clone();
+			v.set(x, y, z);
+			m.addMarker(v);
 		}
 
-		if (props.color) {
-			try { m.color = new THREE.Color(props.color); } catch (e) { /* ignorar color inválido */ }
+		if (props.color && m.color && typeof m.color.set === "function") {
+			try { m.color.set(props.color); } catch (e) { /* ignorar color inválido */ }
 		}
 		if (props.visible === false) m.visible = false;
 
