@@ -56,11 +56,11 @@
 			$("#menu_clipping").next().show();
 			viewer.toggleSidebar();
 
-			// Persistencia de mediciones: carga measurements.json automáticamente,
+			// Persistencia de mediciones: carga measure.json (GeoJSON) automáticamente,
 			// y ofrece un botón para descargarlo y subirlo al repo manualmente
 			initMeasurementsPersistence(viewer, {
-				loadUrl: "./pointclouds/TEST_DATA/measurements.json",
-				downloadFilename: "measurements.json"
+				loadUrl: "./pointclouds/TEST_DATA/measure.json",
+				downloadFilename: "measure.json"
 			});
 		});
 		

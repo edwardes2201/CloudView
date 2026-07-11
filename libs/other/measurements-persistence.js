@@ -1,68 +1,113 @@
 /**
  * Potree - Persistencia de mediciones (líneas / polilíneas) + capas + edición/borrado individual
  * ------------------------------------------------------------------------------------------
+ * Usa el MISMO formato GeoJSON que ya exporta Potree con su botón nativo de guardar
+ * mediciones (FeatureCollection de LineString/Polygon), solo que le agrega un campo
+ * "layer" dentro de "properties" -algo que Potree no ofrece de fábrica-.
+ *
+ * Los Feature de tipo "Point" que genera Potree (son las etiquetas de distancia) se
+ * ignoran al cargar: no son necesarios, Potree las vuelve a calcular solo.
+ *
  * Versión para GitHub Pages (hosting estático, sin backend):
- *  - CARGA automática: al abrir la página, hace fetch de measurements.json (funciona
- *    porque es un archivo estático más dentro del repo).
- *  - GUARDADO manual: no existe servidor para recibir un POST, así que en vez de eso
- *    se ofrece un botón "Descargar measurements.json" que genera el archivo actualizado.
- *    Ese archivo hay que subirlo al repo (arrastrándolo en la web de GitHub o con
- *    git push) reemplazando el que está en la carpeta de la nube de puntos.
- *    Una vez subido, va a estar disponible para cualquiera que abra el link.
+ *  - CARGA automática: al abrir la página, hace fetch del GeoJSON (funciona porque
+ *    es un archivo estático más dentro del repo).
+ *  - GUARDADO manual: no hay servidor que reciba un POST, así que el panel te da un
+ *    botón "Descargar measure.json" con el archivo actualizado (incluyendo capas).
+ *    Ese archivo hay que subirlo al repo reemplazando el anterior.
+ *
+ * El panel de control es FLOTANTE y fijo en la pantalla, independiente del sidebar
+ * de Potree, para que siempre esté visible.
  *
  * Uso (una vez que el viewer ya existe):
  *
  *   initMeasurementsPersistence(viewer, {
- *     loadUrl: "./pointclouds/TEST_DATA/measurements.json",
- *     downloadFilename: "measurements.json"
+ *     loadUrl: "./pointclouds/TEST_DATA/measure.json",
+ *     downloadFilename: "measure.json"
  *   });
  */
 (function () {
 
-	function measurementToJSON(m) {
+	// ---------- Conversión Measure <-> GeoJSON ----------
+
+	function measurementToFeature(m) {
+		const coords = m.points.map(p => {
+			const pos = p.position || p;
+			return [pos.x, pos.y, pos.z];
+		});
+
+		const isPolygon = !!m.closed && coords.length >= 3;
+
 		return {
-			uuid: m.uuid,
-			name: m.name || "Medición",
-			layer: m.layer || "Sin capa",
-			visible: m.visible !== false,
-			color: (m.color && m.color.getHexString) ? ("#" + m.color.getHexString()) : null,
-			closed: !!m.closed,
-			showDistances: m.showDistances !== false,
-			showCoordinates: !!m.showCoordinates,
-			showArea: !!m.showArea,
-			showAngles: !!m.showAngles,
-			showHeight: !!m.showHeight,
-			showCircle: !!m.showCircle,
-			points: m.points.map(p => {
-				const pos = p.position || p;
-				return [pos.x, pos.y, pos.z];
-			})
+			type: "Feature",
+			geometry: isPolygon
+				? { type: "Polygon", coordinates: [ [...coords, coords[0]] ] }
+				: { type: "LineString", coordinates: coords },
+			properties: {
+				name: m.name || "Distance",
+				layer: m.layer || "Sin capa",
+				visible: m.visible !== false,
+				color: (m.color && m.color.getHexString) ? ("#" + m.color.getHexString()) : null,
+				closed: !!m.closed,
+				showDistances: m.showDistances !== false,
+				uuid: m.uuid
+			}
 		};
 	}
 
-	function measurementFromJSON(json) {
-		const m = new Potree.Measure();
-		m.name = json.name;
-		m.layer = json.layer || "Sin capa";
-		m.closed = !!json.closed;
-		m.showDistances = json.showDistances !== false;
-		m.showCoordinates = !!json.showCoordinates;
-		m.showArea = !!json.showArea;
-		m.showAngles = !!json.showAngles;
-		m.showHeight = !!json.showHeight;
-		m.showCircle = !!json.showCircle;
+	function measurementsToGeoJSON(measurements) {
+		return {
+			type: "FeatureCollection",
+			features: measurements.map(measurementToFeature)
+		};
+	}
 
-		for (const [x, y, z] of json.points) {
+	function featureToMeasurement(f) {
+		if (!f || !f.geometry) return null;
+
+		let coords, closed;
+		if (f.geometry.type === "LineString") {
+			coords = f.geometry.coordinates;
+			closed = false;
+		} else if (f.geometry.type === "Polygon") {
+			coords = f.geometry.coordinates[0];
+			closed = true;
+		} else {
+			// "Point" u otros: son etiquetas/marcas auxiliares de Potree, se ignoran
+			return null;
+		}
+
+		if (!Array.isArray(coords) || coords.length < 2) return null;
+
+		const props = f.properties || {};
+		const m = new Potree.Measure();
+		m.name = props.name || "Distance";
+		m.layer = props.layer || "Sin capa";
+		m.closed = closed;
+		m.showDistances = props.showDistances !== false;
+
+		for (const c of coords) {
+			const [x, y, z] = c;
 			m.addMarker(new THREE.Vector3(x, y, z));
 		}
 
-		if (json.color) {
-			try { m.color = new THREE.Color(json.color); } catch (e) { /* ignorar */ }
+		if (props.color) {
+			try { m.color = new THREE.Color(props.color); } catch (e) { /* ignorar color inválido */ }
 		}
-		if (json.visible === false) {
-			m.visible = false;
-		}
+		if (props.visible === false) m.visible = false;
+
 		return m;
+	}
+
+	function geojsonToMeasurements(geojson) {
+		if (!geojson || geojson.type !== "FeatureCollection" || !Array.isArray(geojson.features)) {
+			throw new Error('Se esperaba un GeoJSON tipo FeatureCollection (el mismo formato que exporta Potree), con una propiedad "features" que sea un array.');
+		}
+		const out = [];
+		for (const f of geojson.features) {
+			const m = featureToMeasurement(f);
+			if (m) out.push(m);
+		}
+		return out;
 	}
 
 	function downloadJSON(filename, dataStr) {
@@ -77,14 +122,17 @@
 		setTimeout(() => URL.revokeObjectURL(url), 1000);
 	}
 
+	// ---------- Lógica principal ----------
+
 	window.initMeasurementsPersistence = function (viewer, options) {
 		const cfg = Object.assign({
 			loadUrl: null,
-			downloadFilename: "measurements.json"
+			downloadFilename: "measure.json"
 		}, options);
 
 		const state = { layers: new Set(["Sin capa"]), dirty: false };
 		let $panel = null;
+		let $body = null;
 
 		function markDirty() {
 			state.dirty = true;
@@ -95,8 +143,8 @@
 			if (!$panel) return;
 			const $btn = $panel.find("#ml_download");
 			$btn.text(state.dirty
-				? "⚠ Descargar measurements.json (hay cambios sin exportar)"
-				: "Descargar measurements.json");
+				? "⚠ Descargar " + cfg.downloadFilename + " (cambios sin exportar)"
+				: "Descargar " + cfg.downloadFilename);
 		}
 
 		function watchMeasurement(m) {
@@ -125,9 +173,9 @@
 			try {
 				const res = await fetch(cfg.loadUrl, { cache: "no-store" });
 				if (!res.ok) return;
-				const data = await res.json();
-				for (const json of data) {
-					const m = measurementFromJSON(json);
+				const geojson = await res.json();
+				const measurements = geojsonToMeasurements(geojson);
+				for (const m of measurements) {
 					viewer.scene.addMeasurement(m);
 					watchMeasurement(m);
 				}
@@ -137,23 +185,49 @@
 			}
 		}
 
-		// ---------- Panel de capas / edición ----------
+		function importGeoJSON(geojson) {
+			const measurements = geojsonToMeasurements(geojson); // puede tirar error, se maneja afuera
+			for (const m of [...viewer.scene.measurements]) {
+				viewer.scene.removeMeasurement(m);
+			}
+			for (const m of measurements) {
+				viewer.scene.addMeasurement(m);
+				watchMeasurement(m);
+			}
+			renderPanel();
+		}
+
+		// ---------- Panel flotante (independiente del sidebar de Potree) ----------
 
 		function buildPanel() {
 			const $p = $(
-				'<div id="measurement_layers_panel" style="padding:8px; font-size:12px; border-top:1px solid #999;">' +
-				'<h3 style="margin:4px 0;">Mediciones y capas</h3>' +
+				'<div id="measurement_layers_panel" style="' +
+				'position:fixed; top:60px; right:10px; width:280px; max-height:70vh; ' +
+				'overflow-y:auto; background:#fff; border:1px solid #999; border-radius:6px; ' +
+				'box-shadow:0 2px 8px rgba(0,0,0,0.3); z-index:10000; font-size:12px; font-family:sans-serif;">' +
+				'<div id="ml_header" style="display:flex; justify-content:space-between; align-items:center; ' +
+				'padding:6px 8px; background:#f0f0f0; border-bottom:1px solid #ccc; cursor:pointer;">' +
+				'<b>Mediciones y capas</b><span id="ml_toggle">▾</span>' +
+				'</div>' +
+				'<div id="ml_body" style="padding:8px;">' +
 				'<div id="ml_layer_list"></div>' +
-				'<button id="ml_download" style="margin-top:6px;">Descargar measurements.json</button>' +
+				'<button id="ml_download" style="margin-top:6px; width:100%;">Descargar ' + cfg.downloadFilename + '</button>' +
 				'<input type="file" id="ml_upload" accept="application/json" style="display:none;">' +
-				'<button id="ml_upload_btn" style="margin-top:6px;">Cargar archivo local...</button>' +
+				'<button id="ml_upload_btn" style="margin-top:6px; width:100%;">Cargar archivo local...</button>' +
+				'</div>' +
 				'</div>'
 			);
-			$("#potree_sidebar_container").append($p);
+			$("body").append($p);
+			$body = $p.find("#ml_body");
+
+			$p.find("#ml_header").on("click", () => {
+				$body.toggle();
+				$p.find("#ml_toggle").text($body.is(":visible") ? "▾" : "▸");
+			});
 
 			$p.find("#ml_download").on("click", () => {
-				const data = viewer.scene.measurements.map(measurementToJSON);
-				downloadJSON(cfg.downloadFilename, JSON.stringify(data, null, 2));
+				const geojson = measurementsToGeoJSON(viewer.scene.measurements);
+				downloadJSON(cfg.downloadFilename, JSON.stringify(geojson, null, 2));
 				state.dirty = false;
 				updateDownloadButtonLabel();
 			});
@@ -162,23 +236,33 @@
 			$p.find("#ml_upload").on("change", async function () {
 				const file = this.files[0];
 				if (!file) return;
+
+				let text, geojson;
 				try {
-					const text = await file.text();
-					const data = JSON.parse(text);
-					// Reemplaza las mediciones actuales por las del archivo cargado
-					for (const m of [...viewer.scene.measurements]) {
-						viewer.scene.removeMeasurement(m);
-					}
-					for (const json of data) {
-						const m = measurementFromJSON(json);
-						viewer.scene.addMeasurement(m);
-						watchMeasurement(m);
-					}
-					renderPanel();
+					text = await file.text();
 				} catch (err) {
-					alert("El archivo no es un JSON de mediciones válido.");
+					alert("No se pudo leer el archivo.");
 					console.error(err);
+					this.value = "";
+					return;
 				}
+
+				try {
+					geojson = JSON.parse(text);
+				} catch (err) {
+					alert("El archivo no es un JSON válido (error de sintaxis). Revisá que no lo hayas editado a mano de forma incorrecta.");
+					console.error("Error de parseo JSON:", err);
+					this.value = "";
+					return;
+				}
+
+				try {
+					importGeoJSON(geojson);
+				} catch (err) {
+					alert("El JSON es válido, pero no tiene el formato GeoJSON esperado.\n\nDetalle: " + err.message);
+					console.error("Error al reconstruir las mediciones:", err);
+				}
+
 				this.value = "";
 			});
 
@@ -211,7 +295,7 @@
 					const $row = $(
 						'<div class="ml_item" style="display:flex; align-items:center; gap:4px; margin:4px 0;">' +
 						'<input type="checkbox" class="ml_vis" ' + (m.visible !== false ? "checked" : "") + '>' +
-						'<input type="text" class="ml_name" value="' + (m.name || "") + '" style="width:90px;">' +
+						'<input type="text" class="ml_name" value="' + (m.name || "") + '" style="width:80px;">' +
 						'<select class="ml_layer_select"></select>' +
 						'<button class="ml_delete" title="Eliminar">Eliminar</button>' +
 						'</div>'
@@ -268,6 +352,7 @@
 		}
 
 		loadAll();
+		renderPanel();
 
 		return { renderPanel };
 	};
