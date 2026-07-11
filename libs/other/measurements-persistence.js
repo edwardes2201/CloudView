@@ -35,13 +35,21 @@
 			return [pos.x, pos.y, pos.z];
 		});
 
-		const isPolygon = !!m.closed && coords.length >= 3;
+		const isPoint = coords.length === 1;
+		const isPolygon = !isPoint && !!m.closed && coords.length >= 3;
+
+		let geometry;
+		if (isPoint) {
+			geometry = { type: "Point", coordinates: coords[0] };
+		} else if (isPolygon) {
+			geometry = { type: "Polygon", coordinates: [ [...coords, coords[0]] ] };
+		} else {
+			geometry = { type: "LineString", coordinates: coords };
+		}
 
 		return {
 			type: "Feature",
-			geometry: isPolygon
-				? { type: "Polygon", coordinates: [ [...coords, coords[0]] ] }
-				: { type: "LineString", coordinates: coords },
+			geometry,
 			properties: {
 				name: m.name || "Distance",
 				layer: m.layer || "Sin capa",
@@ -63,22 +71,31 @@
 
 	function featureToMeasurement(f) {
 		if (!f || !f.geometry) return null;
+		const props = f.properties || {};
+		const type = f.geometry.type;
 
-		let coords, closed;
-		if (f.geometry.type === "LineString") {
+		let coords, closed = false;
+
+		if (type === "LineString") {
 			coords = f.geometry.coordinates;
-			closed = false;
-		} else if (f.geometry.type === "Polygon") {
+			if (!Array.isArray(coords) || coords.length < 2) return null;
+		} else if (type === "Polygon") {
 			coords = f.geometry.coordinates[0];
 			closed = true;
+			if (!Array.isArray(coords) || coords.length < 2) return null;
+		} else if (type === "Point") {
+			// Potree genera dos tipos de Point en su export:
+			//  - etiqueta de distancia de una línea (properties.distance, SIN "name") -> se ignora
+			//  - medición de punto individual real (properties.name, ej. "Point") -> se conserva
+			if (props.distance !== undefined && props.name === undefined) {
+				return null;
+			}
+			coords = [f.geometry.coordinates];
 		} else {
-			// "Point" u otros: son etiquetas/marcas auxiliares de Potree, se ignoran
+			// otros tipos no soportados
 			return null;
 		}
 
-		if (!Array.isArray(coords) || coords.length < 2) return null;
-
-		const props = f.properties || {};
 		const m = new Potree.Measure();
 		m.name = props.name || "Distance";
 		m.layer = props.layer || "Sin capa";
@@ -210,7 +227,7 @@
 				'<div id="measurement_layers_panel" style="' +
 				'position:fixed; top:60px; right:10px; width:280px; max-height:70vh; ' +
 				'overflow-y:auto; background:#fff; border:1px solid #999; border-radius:6px; ' +
-				'box-shadow:0 2px 8px rgba(0,0,0,0.3); z-index:10000; font-size:12px; font-family:sans-serif;">' +
+				'box-shadow:0 2px 8px rgba(0,0,0,0.3); z-index:40; font-size:12px; font-family:sans-serif;">' +
 				'<div id="ml_header" style="display:flex; justify-content:space-between; align-items:center; ' +
 				'padding:6px 8px; background:#f0f0f0; border-bottom:1px solid #ccc; cursor:pointer;">' +
 				'<b>Mediciones y capas</b><span id="ml_toggle">▾</span>' +
